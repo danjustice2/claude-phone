@@ -1,6 +1,6 @@
 /**
  * Multi-Extension SIP Registrar
- * Registers multiple extensions with 3CX independently
+ * Registers multiple extensions with Asterisk PBX independently
  */
 
 class MultiRegistrar {

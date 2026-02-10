@@ -4,7 +4,9 @@
 
 # Claude Phone
 
-Voice interface for Claude Code via SIP/3CX. Call your AI, and your AI can call you.
+Voice interface for Claude Code via SIP/Asterisk. Call your AI, and your AI can call you.
+
+> Forked from [theNetworkChuck/claude-phone](https://github.com/theNetworkChuck/claude-phone) and adapted to use [Asterisk](https://www.asterisk.org/) (open-source PBX) instead of 3CX.
 
 ## What is this?
 
@@ -13,14 +15,26 @@ Claude Phone gives your Claude Code installation a phone number. You can:
 - **Inbound**: Call an extension and talk to Claude - run commands, check status, ask questions
 - **Outbound**: Your server can call YOU with alerts, then have a conversation about what to do
 
+## What changed from the original?
+
+This fork replaces the proprietary 3CX cloud PBX with **Asterisk**, a free and open-source PBX that runs locally in Docker alongside the other services. No cloud PBX account needed.
+
+| Feature | Original (3CX) | This Fork (Asterisk) |
+|---------|----------------|---------------------|
+| PBX | 3CX Cloud (proprietary) | Asterisk (open-source, self-hosted) |
+| Account required | 3CX cloud account | None - runs locally |
+| SIP extensions | Created in 3CX admin panel | Auto-generated from devices.json |
+| Configuration | Manual 3CX setup | Automatic via Docker |
+
 ## Prerequisites
 
 | Requirement | Where to Get It | Notes |
 |-------------|-----------------|-------|
-| **3CX Cloud Account** | [3cx.com](https://www.3cx.com/) | Free tier works |
+| **Docker & Docker Compose** | [docker.com](https://docs.docker.com/get-docker/) | For running all services |
 | **ElevenLabs API Key** | [elevenlabs.io](https://elevenlabs.io/) | For text-to-speech |
 | **OpenAI API Key** | [platform.openai.com](https://platform.openai.com/) | For Whisper speech-to-text |
 | **Claude Code CLI** | [claude.ai/code](https://claude.ai/code) | Requires Claude Max subscription |
+| **SIP Softphone** | [Ooh la SIP](https://ooh.la/) / [Ooh la SIP - iOS](https://apps.apple.com/app/ooh-la-sip/id6740046500) / [Ooh la SIP - Android](https://play.google.com/store/apps/details?id=la.ooh.ooh_la_sip) / [Ooh la SIP - Desktop](https://ooh.la/) | To make calls to the AI |
 
 ## Platform Support
 
@@ -58,10 +72,69 @@ The setup wizard asks what you're installing:
 | **API Server** | Mac/Linux with Claude Code | Just the Claude API wrapper |
 | **Both** | All-in-one single machine | Everything on one box |
 
-### 3. Start
+### 3. Configure your devices
+
+Edit `voice-app/config/devices.json` with your extensions. Asterisk auto-generates matching SIP credentials from this file:
+
+```json
+{
+  "9000": {
+    "name": "Assistant",
+    "extension": "9000",
+    "authId": "9000",
+    "password": "claude9000",
+    "voiceId": "your-elevenlabs-voice-id",
+    "prompt": "You are a helpful AI assistant. Keep voice responses under 40 words."
+  }
+}
+```
+
+### 4. Start
 
 ```bash
 claude-phone start
+```
+
+### 5. Connect your SIP phone
+
+Register a SIP softphone with Asterisk using these settings:
+
+| Setting | Value |
+|---------|-------|
+| Server | Your server's LAN IP |
+| Port | 5060 |
+| Username | 1001 |
+| Password | changeme (or your USER_EXT_PASSWORD) |
+
+Then dial **9000** to talk to Claude!
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  SIP Phone / Softphone                                       │
+│      │                                                       │
+│      ↓ Dial extension 9000                                  │
+│  ┌─────────────────────────────────────────────────┐       │
+│  │     Asterisk PBX (Docker)                        │       │
+│  │     Open-source, self-hosted                     │       │
+│  └──────┬──────────────────────────────────────────┘       │
+│         │ SIP (port 5060 → 5070)                            │
+│         ↓                                                    │
+│  ┌─────────────────────────────────────────────────┐       │
+│  │           voice-app (Docker)                     │       │
+│  │  ┌─────────────────────────────────────────┐   │       │
+│  │  │ drachtio  │  FreeSWITCH  │  Node.js     │   │       │
+│  │  │ (SIP)     │  (Media)     │  (Logic)     │   │       │
+│  │  └─────────────────────────────────────────┘   │       │
+│  └────────────────────┬────────────────────────────┘       │
+│                       │ HTTP                                │
+│                       ↓                                      │
+│  ┌─────────────────────────────────────────────────┐       │
+│  │   claude-api-server                              │       │
+│  │   Wraps Claude Code CLI with session management │       │
+│  └─────────────────────────────────────────────────┘       │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ## Deployment Modes
@@ -72,16 +145,15 @@ Best for: Mac or Linux server that's always on and has Claude Code installed.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  Your Phone                                                  │
+│  SIP Softphone                                               │
 │      │                                                       │
-│      ↓ Call extension 9000                                  │
-│  ┌─────────────┐                                            │
-│  │     3CX     │  ← Cloud PBX                               │
-│  └──────┬──────┘                                            │
-│         │                                                    │
-│         ↓                                                    │
+│      ↓ Dial extension 9000                                  │
 │  ┌─────────────────────────────────────────────┐           │
 │  │     Single Server (Mac/Linux)                │           │
+│  │  ┌──────────┐                               │           │
+│  │  │ Asterisk │ (Docker)                      │           │
+│  │  └────┬─────┘                               │           │
+│  │       ↓                                      │           │
 │  │  ┌───────────┐    ┌───────────────────┐    │           │
 │  │  │ voice-app │ ←→ │ claude-api-server │    │           │
 │  │  │ (Docker)  │    │ (Claude Code CLI) │    │           │
@@ -102,19 +174,14 @@ Best for: Dedicated Pi for voice services, Claude running on your main machine.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  Your Phone                                                  │
+│  SIP Softphone                                               │
 │      │                                                       │
-│      ↓ Call extension 9000                                  │
-│  ┌─────────────┐                                            │
-│  │     3CX     │  ← Cloud PBX                               │
-│  └──────┬──────┘                                            │
-│         │                                                    │
-│         ↓                                                    │
+│      ↓ Dial extension 9000                                  │
 │  ┌─────────────┐         ┌─────────────────────┐           │
 │  │ Raspberry Pi │   ←→   │ Mac/Linux with      │           │
-│  │ (voice-app)  │  HTTP  │ Claude Code CLI     │           │
-│  └─────────────┘         │ (claude-api-server) │           │
-│                          └─────────────────────┘           │
+│  │ (Asterisk + │  HTTP   │ Claude Code CLI     │           │
+│  │  voice-app) │         │ (claude-api-server) │           │
+│  └─────────────┘         └─────────────────────┘           │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -144,7 +211,7 @@ Note: On the API server machine, you don't need to run `claude-phone setup` firs
 | `claude-phone device add` | Add a new device/extension |
 | `claude-phone device list` | List configured devices |
 | `claude-phone device remove <name>` | Remove a device |
-| `claude-phone logs [service]` | Tail logs (voice-app, drachtio, freeswitch) |
+| `claude-phone logs [service]` | Tail logs (voice-app, drachtio, freeswitch, asterisk) |
 | `claude-phone config show` | Display configuration (secrets redacted) |
 | `claude-phone config path` | Show config file location |
 | `claude-phone config reset` | Reset configuration |
@@ -162,8 +229,23 @@ claude-phone device add
 ```
 
 Example devices:
-- **Morpheus** (ext 9000) - General assistant
-- **Cephanie** (ext 9002) - Storage monitoring bot
+- **Assistant** (ext 9000) - General assistant
+- **ServerBot** (ext 9002) - Storage monitoring bot
+
+## Asterisk Configuration
+
+Asterisk auto-generates its PJSIP configuration from `voice-app/config/devices.json` on startup. It also creates default user phone extensions (1001, 1002) for SIP softphones.
+
+### User Phone Extensions
+
+| Extension | Username | Password | Notes |
+|-----------|----------|----------|-------|
+| 1001 | 1001 | changeme | Set USER_EXT_PASSWORD in .env |
+| 1002 | 1002 | changeme | Set USER_EXT_PASSWORD in .env |
+
+### Adding a SIP Trunk (for PSTN)
+
+To make/receive calls from real phone numbers, add a SIP trunk provider (e.g., Twilio, VoIP.ms) to `asterisk/entrypoint.sh` or mount a custom `pjsip_trunk.conf`.
 
 ## API Endpoints
 
@@ -194,9 +276,9 @@ claude-phone logs      # View logs
 | Problem | Likely Cause | Solution |
 |---------|--------------|----------|
 | Calls connect but no audio | Wrong external IP | Re-run `claude-phone setup`, verify LAN IP |
-| Extension not registering | 3CX SBC not running | Check 3CX admin panel |
+| Extension not registering | Asterisk not running | Check `docker ps \| grep asterisk` |
 | "Sorry, something went wrong" | API server unreachable | Check `claude-phone status` |
-| Port conflict on startup | 3CX SBC using port 5060 | Setup auto-detects this; re-run setup |
+| Port conflict on startup | Another service using 5060 | Stop conflicting service or change ASTERISK_SIP_PORT |
 
 See [Troubleshooting Guide](docs/TROUBLESHOOTING.md) for more.
 
@@ -226,7 +308,6 @@ npm run lint:fix
 - [Troubleshooting](docs/TROUBLESHOOTING.md) - Common issues and solutions
 - [Outbound API](voice-app/README-OUTBOUND.md) - Outbound calling API reference
 - [Deployment](voice-app/DEPLOYMENT.md) - Production deployment guide
-- [Claude Code Skill](docs/CLAUDE-CODE-SKILL.md) - Build a "call me" skill for Claude Code
 
 ## License
 

@@ -1,12 +1,14 @@
 # Claude Phone
 
-Voice interface for Claude Code via SIP/3CX. Call your AI, and your AI can call you.
+Voice interface for Claude Code via SIP/Asterisk. Call your AI, and your AI can call you.
 
 ## Project Overview
 
-Claude Phone gives your Claude Code installation a phone number through 3CX PBX integration:
+Claude Phone gives your Claude Code installation a phone number through Asterisk PBX integration:
 - **Inbound**: Call an extension and talk to Claude - run commands, check status, ask questions
 - **Outbound**: Your server can call YOU with alerts, then have a conversation about what to do
+
+This is a fork that replaces the proprietary 3CX cloud PBX with Asterisk (open-source, self-hosted).
 
 ## Tech Stack
 
@@ -18,18 +20,18 @@ Claude Phone gives your Claude Code installation a phone number through 3CX PBX 
 | STT | OpenAI Whisper API |
 | TTS | ElevenLabs API |
 | AI Backend | Claude Code CLI (via HTTP wrapper) |
-| PBX | 3CX (any SIP-compatible works) |
+| PBX | Asterisk (open-source, self-hosted in Docker) |
 | Container | Docker Compose |
 
 ## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  Phone Call                                                  │
+│  SIP Phone / Softphone                                       │
 │      │                                                       │
 │      ↓ Call extension 9000                                  │
 │  ┌─────────────┐                                            │
-│  │     3CX     │  ← PBX routes the call                    │
+│  │  Asterisk   │  ← Open-source PBX (Docker, port 5060)    │
 │  └──────┬──────┘                                            │
 │         │ SIP                                               │
 │         ↓                                                    │
@@ -37,7 +39,7 @@ Claude Phone gives your Claude Code installation a phone number through 3CX PBX 
 │  │           voice-app (Docker)                     │       │
 │  │  ┌─────────────────────────────────────────┐   │       │
 │  │  │ drachtio  │  FreeSWITCH  │  Node.js     │   │       │
-│  │  │ (SIP)     │  (Media)     │  (Logic)     │   │       │
+│  │  │ (SIP:5070)│  (Media)     │  (Logic)     │   │       │
 │  │  └─────────────────────────────────────────┘   │       │
 │  └────────────────────┬────────────────────────────┘       │
 │                       │ HTTP                                │
@@ -62,15 +64,13 @@ claude-phone/
 ├── docker-compose.yml        # Multi-container orchestration
 ├── .env.example              # Environment template
 │
-├── .claude/commands/         # DevFlow slash commands
-│   ├── feature.md            # /feature spec|start|ship
-│   ├── test.md               # /test
-│   ├── fix.md                # /fix [N]
-│   ├── issues.md             # /issues
-│   ├── investigate.md        # /investigate
-│   ├── project.md            # /project
-│   ├── batch.md              # /batch
-│   └── design.md             # /design
+├── asterisk/                 # Asterisk PBX container
+│   ├── Dockerfile            # Asterisk Docker image
+│   ├── entrypoint.sh         # Config generator + startup
+│   └── config/               # Base Asterisk config files
+│       ├── asterisk.conf     # Main Asterisk config
+│       ├── modules.conf      # Module loading
+│       └── logger.conf       # Logging config
 │
 ├── cli/                      # Unified CLI tool
 │   ├── package.json
@@ -181,17 +181,6 @@ npm run lint          # Check for issues
 npm run lint:fix      # Auto-fix issues
 ```
 
-### DevFlow Commands
-
-| Command | Purpose |
-|---------|---------|
-| `/feature spec [name]` | Create feature spec |
-| `/feature start [name]` | Build with TDD |
-| `/feature ship` | Review and merge |
-| `/test` | Run tests |
-| `/fix [N]` | Fix GitHub issue #N |
-| `/investigate [problem]` | Debug without changing code |
-
 ## API Endpoints
 
 ### Voice App (port 3000)
@@ -220,8 +209,10 @@ npm run lint:fix      # Auto-fix issues
 3. **Host networking mode** - Required for FreeSWITCH RTP
 4. **Separate claude-api-server** - Runs where Claude Code CLI is installed
 5. **Session-per-call** - Each call gets Claude session for multi-turn context
-6. **RTP ports 30000-30100** - Avoids conflict with 3CX SBC (uses 20000-20099)
+6. **RTP ports 30000-30100** - Avoids conflict with other services
 7. **Config in ~/.claude-phone** - User config separate from codebase
+8. **Asterisk on port 5060, drachtio on 5070** - Avoids port conflict between PBX and SIP app
+9. **Auto-generated Asterisk config** - pjsip.conf generated from devices.json at container start
 
 ## Environment Variables
 
@@ -233,8 +224,9 @@ See `.env.example` for all variables. Key ones:
 | `CLAUDE_API_URL` | URL to claude-api-server |
 | `ELEVENLABS_API_KEY` | TTS API key |
 | `OPENAI_API_KEY` | Whisper STT API key |
-| `SIP_DOMAIN` | 3CX server FQDN |
-| `SIP_REGISTRAR` | SIP registrar address |
+| `SIP_DOMAIN` | SIP domain for headers (default: claude-phone.local) |
+| `SIP_REGISTRAR` | Asterisk registrar address (default: 127.0.0.1) |
+| `USER_EXT_PASSWORD` | Password for user phone extensions (1001, 1002) |
 
 ## Documentation
 
@@ -243,4 +235,3 @@ See `.env.example` for all variables. Key ones:
 - [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) - Common issues
 - [voice-app/DEPLOYMENT.md](voice-app/DEPLOYMENT.md) - Production deployment
 - [voice-app/README-OUTBOUND.md](voice-app/README-OUTBOUND.md) - Outbound API
-- [CONSTITUTION.md](CONSTITUTION.md) - DevFlow principles

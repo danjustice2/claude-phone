@@ -54,14 +54,14 @@ var config = {
   },
   sip: {
     extension: process.env.SIP_EXTENSION || "9000",
-    auth_id: process.env.SIP_AUTH_ID || "Au0XZPTpJY",
-    password: process.env.SIP_AUTH_PASSWORD || "DGHwMW6v25",
-    domain: process.env.SIP_DOMAIN || "hello.networkchuck.com",
-    registrar: process.env.SIP_REGISTRAR || "hello.networkchuck.com",
+    auth_id: process.env.SIP_AUTH_ID || "9000",
+    password: process.env.SIP_AUTH_PASSWORD || "claude9000",
+    domain: process.env.SIP_DOMAIN || "claude-phone.local",
+    registrar: process.env.SIP_REGISTRAR || "127.0.0.1",
     registrar_port: parseInt(process.env.SIP_REGISTRAR_PORT) || 5060,
     expiry: parseInt(process.env.SIP_EXPIRY) || 3600
   },
-  external_ip: process.env.EXTERNAL_IP || "10.70.7.81",
+  external_ip: process.env.EXTERNAL_IP || "127.0.0.1",
   http_port: parseInt(process.env.HTTP_PORT) || 3000,
   ws_port: parseInt(process.env.WS_PORT) || 3001,
   audio_dir: process.env.AUDIO_DIR || "/tmp/voice-audio"

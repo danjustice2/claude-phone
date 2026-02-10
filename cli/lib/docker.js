@@ -96,10 +96,10 @@ export function generateDockerCompose(config) {
     };
   }
 
-  // Determine drachtio port from config (5070 when 3CX SBC detected, 5060 otherwise)
+  // Determine drachtio port from config (5070 to avoid conflict with Asterisk on 5060)
   const drachtioPort = config.deployment && config.deployment.pi && config.deployment.pi.drachtioPort
     ? config.deployment.pi.drachtioPort
-    : 5060;
+    : 5070;
 
   // Determine if running on Pi (ARM64) - use specific versions with platform
   const isPiMode = config.deployment && config.deployment.mode === 'pi-split';
@@ -136,7 +136,7 @@ services:
       --sip-port 5080
       --rtp-range-start 30000
       --rtp-range-end 30100
-    # RTP ports 30000-30100 avoid conflict with 3CX SBC (uses 20000-20099)
+    # RTP ports 30000-30100
     environment:
       - EXTERNAL_IP=${externalIp}
 
@@ -199,8 +199,8 @@ export function generateEnvFile(config) {
     'DRACHTIO_HOST=127.0.0.1',
     'DRACHTIO_PORT=9022',
     `DRACHTIO_SECRET=${config.secrets.drachtio}`,
-    // SIP port for Contact header (5070 when 3CX SBC is present, 5060 otherwise)
-    `DRACHTIO_SIP_PORT=${config.deployment?.pi?.drachtioPort || 5060}`,
+    // SIP port for Contact header (5070 to avoid conflict with Asterisk on 5060)
+    `DRACHTIO_SIP_PORT=${config.deployment?.pi?.drachtioPort || 5070}`,
     '',
     '# FreeSWITCH Configuration',
     'FREESWITCH_HOST=127.0.0.1',
@@ -208,7 +208,7 @@ export function generateEnvFile(config) {
     // Note: This is the default ESL password for drachtio/drachtio-freeswitch-mrf
     'FREESWITCH_SECRET=JambonzR0ck$',
     '',
-    '# 3CX / SIP Configuration',
+    '# Asterisk / SIP Configuration',
     `SIP_DOMAIN=${config.sip.domain}`,
     `SIP_REGISTRAR=${config.sip.registrar}`,
     '',

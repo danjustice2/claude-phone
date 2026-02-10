@@ -173,10 +173,9 @@ async function startVoiceServer(config, isPiMode) {
     if (error.message.includes('port') || error.message.includes('address already in use')) {
       console.log(chalk.yellow('\n⚠️  Port conflict detected\n'));
       console.log(chalk.gray('Possible causes:'));
-      console.log(chalk.gray('  • 3CX SBC is running on the configured port'));
-      console.log(chalk.gray('  • Another service is using the port'));
+      console.log(chalk.gray('  • Another service is using port 5060 or 5070'));
       console.log(chalk.gray('\nSuggested fixes:'));
-      console.log(chalk.gray('  1. If 3CX SBC is on port 5060, run "claude-phone setup" again'));
+      console.log(chalk.gray('  1. Check what is using the port: ss -tulnp | grep 5060'));
       console.log(chalk.gray('  2. Check running containers: docker ps'));
       console.log(chalk.gray('  3. Stop conflicting services: docker compose down\n'));
     }
@@ -192,7 +191,7 @@ async function startVoiceServer(config, isPiMode) {
   // Success
   console.log(chalk.bold.green('\n✓ Voice server running!\n'));
   console.log(chalk.gray('Services:'));
-  console.log(chalk.gray(`  • Docker containers: drachtio, freeswitch, voice-app`));
+  console.log(chalk.gray(`  • Docker containers: asterisk, drachtio, freeswitch, voice-app`));
   if (apiServerIp) {
     console.log(chalk.gray(`  • API server: http://${apiServerIp}:${config.server.claudeApiPort}`));
   }
@@ -296,10 +295,9 @@ async function startBoth(config, isPiMode) {
     if (error.message.includes('port') || error.message.includes('address already in use')) {
       console.log(chalk.yellow('\n⚠️  Port conflict detected\n'));
       console.log(chalk.gray('Possible causes:'));
-      console.log(chalk.gray('  • 3CX SBC is running on the configured port'));
-      console.log(chalk.gray('  • Another service is using the port'));
+      console.log(chalk.gray('  • Another service is using port 5060 or 5070'));
       console.log(chalk.gray('\nSuggested fixes:'));
-      console.log(chalk.gray('  1. If 3CX SBC is on port 5060, run "claude-phone setup" again'));
+      console.log(chalk.gray('  1. Check what is using the port: ss -tulnp | grep 5060'));
       console.log(chalk.gray('  2. Check running containers: docker ps'));
       console.log(chalk.gray('  3. Stop conflicting services: docker compose down\n'));
     }
@@ -331,7 +329,7 @@ async function startBoth(config, isPiMode) {
   // Success
   console.log(chalk.bold.green('\n✓ All services running!\n'));
   console.log(chalk.gray('Services:'));
-  console.log(chalk.gray(`  • Docker containers: drachtio, freeswitch, voice-app`));
+  console.log(chalk.gray(`  • Docker containers: asterisk, drachtio, freeswitch, voice-app`));
   if (isPiMode) {
     console.log(chalk.gray(`  • API server: http://${config.deployment.pi.macIp}:${config.server.claudeApiPort}`));
   } else {

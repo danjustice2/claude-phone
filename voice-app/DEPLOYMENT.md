@@ -4,16 +4,22 @@ Guide for deploying Claude Phone in production environments.
 
 ## Architecture Overview
 
-Claude Phone consists of three Docker containers and an optional API server:
+Claude Phone consists of four Docker containers and an optional API server:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    Docker Containers                         │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐ │
-│  │  drachtio   │  │ freeswitch  │  │     voice-app       │ │
-│  │  (SIP)      │  │  (Media)    │  │   (Node.js app)     │ │
-│  │  Port 5060  │  │ RTP 30000+  │  │   Port 3000         │ │
-│  └─────────────┘  └─────────────┘  └─────────────────────┘ │
+│  ┌──────────┐  ┌─────────────┐  ┌─────────────┐           │
+│  │ Asterisk │  │  drachtio   │  │ freeswitch  │           │
+│  │ (PBX)    │  │  (SIP)      │  │  (Media)    │           │
+│  │ Port 5060│  │  Port 5070  │  │ RTP 30000+  │           │
+│  └──────────┘  └─────────────┘  └─────────────┘           │
+│                                                             │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │                   voice-app                          │   │
+│  │                 (Node.js app)                        │   │
+│  │                  Port 3000                           │   │
+│  └─────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
@@ -30,8 +36,8 @@ Claude Phone consists of three Docker containers and an optional API server:
 
 | Port | Protocol | Service | Direction |
 |------|----------|---------|-----------|
-| 5060 | UDP/TCP | SIP signaling (drachtio) | Inbound |
-| 5070 | UDP/TCP | SIP signaling (if 3CX SBC present) | Inbound |
+| 5060 | UDP/TCP | Asterisk PBX SIP | Inbound (from SIP phones) |
+| 5070 | UDP/TCP | drachtio SIP signaling | Internal (from Asterisk) |
 | 3000 | TCP | Voice app HTTP API | Inbound (optional) |
 | 3333 | TCP | Claude API server | Internal |
 | 30000-30100 | UDP | RTP audio (FreeSWITCH) | Bidirectional |
@@ -41,7 +47,7 @@ Claude Phone consists of three Docker containers and an optional API server:
 For voice to work correctly, you must allow:
 
 ```bash
-# SIP signaling
+# SIP signaling (Asterisk PBX - for SIP phones to connect)
 sudo ufw allow 5060/udp
 sudo ufw allow 5060/tcp
 
@@ -58,7 +64,7 @@ The `EXTERNAL_IP` setting must be your server's LAN IP that can receive RTP pack
 
 - Use your server's private IP (e.g., 192.168.1.50)
 - Ensure RTP ports are forwarded if behind NAT
-- 3CX handles NAT traversal for SIP; RTP is direct
+- Asterisk handles NAT traversal for SIP; RTP is direct
 
 ## Docker Configuration
 
@@ -66,18 +72,27 @@ The CLI generates `~/.claude-phone/docker-compose.yml` automatically. Key settin
 
 ### Network Mode
 
-Voice-app uses `network_mode: host` for RTP to work correctly:
+All containers use `network_mode: host` for RTP to work correctly:
 
 ```yaml
+asterisk:
+  network_mode: host
+
 voice-app:
   network_mode: host
 ```
 
 This allows FreeSWITCH to bind RTP ports directly.
 
+### Port Assignment
+
+- **Asterisk**: port 5060 (standard SIP port for phones/softphones)
+- **drachtio**: port 5070 (avoids conflict with Asterisk)
+- **FreeSWITCH**: port 5080 (internal SIP), 30000-30100 (RTP)
+
 ### RTP Port Range
 
-FreeSWITCH uses ports 30000-30100 by default (configured to avoid conflict with 3CX SBC which uses 20000-20099):
+FreeSWITCH uses ports 30000-30100 by default:
 
 ```yaml
 freeswitch:
@@ -96,8 +111,24 @@ Key environment variables in the generated `.env`:
 | `CLAUDE_API_URL` | URL to claude-api-server |
 | `ELEVENLABS_API_KEY` | TTS API key |
 | `OPENAI_API_KEY` | Whisper STT API key |
-| `SIP_DOMAIN` | 3CX server FQDN |
-| `SIP_REGISTRAR` | SIP registrar address |
+| `SIP_DOMAIN` | SIP domain for headers |
+| `SIP_REGISTRAR` | Asterisk registrar address (127.0.0.1) |
+| `USER_EXT_PASSWORD` | Password for user phone extensions |
+
+## Asterisk Auto-Configuration
+
+Asterisk generates its PJSIP config automatically from `voice-app/config/devices.json` at container startup. This means:
+
+- Device extensions (9000, 9002, etc.) are auto-created with matching credentials
+- User phone extensions (1001, 1002) are created for SIP softphones
+- No manual Asterisk configuration is needed
+
+To add more devices, update `devices.json` and restart:
+
+```bash
+claude-phone stop
+claude-phone start
+```
 
 ## Split Deployment
 
@@ -105,10 +136,10 @@ Key environment variables in the generated `.env`:
 
 Requirements:
 - Docker and Docker Compose
-- Network access to 3CX and API server
+- Network access to API server
 - Static IP recommended
 
-The voice server runs Docker containers and connects to a remote API server:
+The voice server runs Docker containers (including Asterisk) and connects to a remote API server:
 
 ```bash
 claude-phone setup    # Select "Voice Server"
@@ -163,14 +194,17 @@ claude-phone logs
 claude-phone logs voice-app
 claude-phone logs drachtio
 claude-phone logs freeswitch
+claude-phone logs asterisk
 ```
 
 ### Key Log Messages
 
 **Healthy startup:**
 ```
+[ASTERISK] Starting Asterisk PBX...
+[ASTERISK] 2 voice-app extension(s) generated
 [SIP] Connected to drachtio
-[SIP] Registered extension 9000 with 3CX
+[SIP] Registered extension 9000 with Asterisk
 [HTTP] Server listening on port 3000
 ```
 
@@ -202,9 +236,10 @@ Error connecting to Claude API
 
 ### SIP Security
 
-- Use strong passwords for SIP extensions
-- 3CX provides TLS for signaling; verify it's enabled
+- Change default passwords for SIP extensions (USER_EXT_PASSWORD)
+- Use strong passwords in devices.json for voice-app extensions
 - Monitor for unusual call patterns
+- Consider enabling Asterisk's fail2ban integration for brute-force protection
 
 ## Troubleshooting
 
@@ -212,15 +247,15 @@ Error connecting to Claude API
 
 1. Verify `EXTERNAL_IP` matches your server's LAN IP
 2. Check RTP ports (30000-30100) are open
-3. Ensure `network_mode: host` is set for voice-app
+3. Ensure `network_mode: host` is set for all containers
 4. Check FreeSWITCH logs for RTP errors
 
 ### SIP Registration Fails
 
-1. Verify 3CX extension credentials
-2. Check SIP domain and registrar settings
-3. Ensure port 5060 (or 5070) is not blocked
-4. Verify no other service is using the SIP port
+1. Verify device credentials in `devices.json` match Asterisk config
+2. Check Asterisk is running: `docker ps | grep asterisk`
+3. Ensure drachtio port (5070) doesn't conflict with other services
+4. Check Asterisk logs: `docker logs asterisk`
 
 ### API Server Connection Issues
 

@@ -1,6 +1,6 @@
 # Troubleshooting Guide
 
-Common issues and solutions for Claude Phone.
+Common issues and solutions for Claude Phone (Asterisk edition).
 
 ## Quick Diagnostics
 
@@ -36,16 +36,6 @@ claude-phone logs     # View recent logs
 - Free tier has limited characters/month
 - Check [elevenlabs.io/subscription](https://elevenlabs.io/subscription)
 
-### "Can't detect 3CX SBC"
-
-**Symptom:** Setup can't connect to your 3CX server.
-
-**Solutions:**
-1. Verify 3CX FQDN is correct (e.g., `yourcompany.3cx.us`)
-2. Ensure 3CX SBC (Session Border Controller) is enabled
-3. Check firewall allows port 5060 (SIP) outbound
-4. Try using port 5070 if 5060 is blocked
-
 ### "Docker not found" or "Docker not running"
 
 **Symptom:** Prerequisite check fails for Docker.
@@ -73,6 +63,16 @@ sudo usermod -aG docker pi
 # Reboot the Pi
 ```
 
+### Asterisk container fails to start
+
+**Symptom:** `docker ps` shows asterisk container exiting or restarting.
+
+**Solutions:**
+1. Check Asterisk logs: `docker logs asterisk`
+2. Verify `devices.json` is valid JSON: `python3 -m json.tool voice-app/config/devices.json`
+3. Ensure port 5060 isn't already in use: `ss -tulnp | grep 5060`
+4. Check if another PBX or SIP service is running on port 5060
+
 ## Connection Issues
 
 ### Calls don't connect at all
@@ -80,37 +80,58 @@ sudo usermod -aG docker pi
 **Symptom:** Phone rings forever or immediately fails.
 
 **Checklist:**
-1. Is the extension registered with 3CX?
+1. Is the extension registered with Asterisk?
    ```bash
    claude-phone status
    # Look for "SIP Registration: OK"
    ```
 
-2. Is the SIP domain correct?
+2. Is Asterisk running?
    ```bash
-   claude-phone config show
-   # Check sip.domain matches your 3CX FQDN
+   docker ps | grep asterisk
    ```
 
-3. Are credentials correct?
-   - Log into 3CX admin panel
-   - Check extension auth ID and password match config
+3. Is the SIP domain correct?
+   ```bash
+   claude-phone config show
+   # Check sip.domain
+   ```
 
-4. Is drachtio container running?
+4. Are credentials correct?
+   - Check `devices.json` matches what drachtio sends
+   - Verify with Asterisk: `docker exec asterisk asterisk -rx "pjsip show endpoints"`
+
+5. Is drachtio container running?
    ```bash
    docker ps | grep drachtio
    ```
 
-### Extension not registering with 3CX
+### Extension not registering with Asterisk
 
 **Symptom:** `claude-phone status` shows SIP registration failed.
 
 **Solutions:**
-1. Verify extension exists in 3CX
-2. Check auth ID matches (usually same as extension number)
-3. Verify password is correct
-4. Ensure SBC is enabled in 3CX settings
-5. Check if another device is using the same extension
+1. Verify extension exists in `devices.json`
+2. Check authId and password match between `devices.json` and Asterisk config
+3. Restart containers to regenerate Asterisk config: `claude-phone stop && claude-phone start`
+4. Check if another device is using the same extension
+5. Check Asterisk registration status:
+   ```bash
+   docker exec asterisk asterisk -rx "pjsip show registrations"
+   ```
+
+### SIP softphone can't register
+
+**Symptom:** Your SIP phone/softphone can't connect to Asterisk.
+
+**Solutions:**
+1. Verify you're using the correct credentials:
+   - Username: `1001` (or `1002`)
+   - Password: value of `USER_EXT_PASSWORD` in `.env` (default: `changeme`)
+   - Server: Your server's LAN IP (not `127.0.0.1`)
+   - Port: `5060`
+2. Ensure port 5060 is reachable from your phone's network
+3. Check Asterisk logs for auth failures: `docker logs asterisk | grep "401\|auth"`
 
 ### Calls connect but no audio
 
@@ -132,27 +153,6 @@ claude-phone setup
 - RTP ports blocked by firewall (needs 30000-30100 UDP)
 - NAT issues (server can't receive return audio)
 - FreeSWITCH container unhealthy
-
-### RTP Port Conflict (3CX SBC)
-
-**Symptom:** Calls fail with "INCOMPATIBLE_DESTINATION" error. Logs show `AUDIO RTP REPORTS ERROR: [Bind Error! IP:port]`.
-
-**Cause:** 3CX SBC uses RTP ports 20000-20099. If FreeSWITCH uses the same range, it can't bind.
-
-**Fix:** Claude Phone uses ports 30000-30100 by default. If you upgraded from an older version:
-
-```bash
-# Check current port config
-grep "rtp-range" ~/.claude-phone/docker-compose.yml
-
-# If it shows 20000, update to 30000:
-sed -i 's/--rtp-range-start 20000/--rtp-range-start 30000/' ~/.claude-phone/docker-compose.yml
-sed -i 's/--rtp-range-end 20100/--rtp-range-end 30100/' ~/.claude-phone/docker-compose.yml
-
-# Restart services
-claude-phone stop
-claude-phone start
-```
 
 ## Runtime Issues
 
@@ -256,6 +256,43 @@ claude-phone config show | grep claudeApiUrl
 
 3. Check for Node.js errors in output
 
+## Asterisk-Specific Issues
+
+### Checking Asterisk status
+
+```bash
+# View registered endpoints
+docker exec asterisk asterisk -rx "pjsip show endpoints"
+
+# View active channels (calls)
+docker exec asterisk asterisk -rx "core show channels"
+
+# View PJSIP registrations
+docker exec asterisk asterisk -rx "pjsip show registrations"
+
+# View loaded config
+docker exec asterisk asterisk -rx "pjsip show aors"
+```
+
+### Asterisk config not updating
+
+**Symptom:** Changes to `devices.json` aren't reflected in Asterisk.
+
+**Solution:** Asterisk config is generated at container start. Restart to apply:
+```bash
+claude-phone stop
+claude-phone start
+```
+
+### Port conflict with another SIP service
+
+**Symptom:** Asterisk fails to bind to port 5060.
+
+**Solution:**
+1. Find what's using the port: `ss -tulnp | grep 5060`
+2. Stop the conflicting service, or
+3. Change `ASTERISK_SIP_PORT` in `.env` to another port (e.g., 5062)
+
 ## Getting Logs
 
 ### Voice App Logs
@@ -279,6 +316,13 @@ claude-phone logs freeswitch
 docker compose logs -f freeswitch
 ```
 
+### Asterisk PBX Logs
+```bash
+claude-phone logs asterisk
+# or
+docker logs -f asterisk
+```
+
 ### API Server Logs
 ```bash
 # If running in foreground, check terminal output
@@ -288,9 +332,9 @@ cat ~/.claude-phone/api-server.log
 
 ## Still Stuck?
 
-1. **Check the video tutorial:** [youtu.be/cT22fTzotYc](https://youtu.be/cT22fTzotYc) covers common setup issues
-2. **Run full diagnostics:** `claude-phone doctor`
-3. **Open an issue:** [github.com/networkchuck/claude-phone/issues](https://github.com/networkchuck/claude-phone/issues)
+1. **Run full diagnostics:** `claude-phone doctor`
+2. **Check all container logs:** `docker compose logs`
+3. **Open an issue:** [github.com/issues](../../issues)
 
 When opening an issue, include:
 - Output of `claude-phone doctor`

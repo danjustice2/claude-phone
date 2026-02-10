@@ -5,6 +5,21 @@ version: '3.8'
 # in SDP, making RTP unreachable from external callers.
 
 services:
+  asterisk:
+    build: ./asterisk
+    container_name: asterisk
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      - EXTERNAL_IP=${EXTERNAL_IP}
+      - ASTERISK_SIP_PORT=${ASTERISK_SIP_PORT:-5060}
+      - USER_EXT_PASSWORD=${USER_EXT_PASSWORD:-changeme}
+    volumes:
+      # Share device config so Asterisk auto-generates matching extensions
+      - ./voice-app/config:/app/config:ro
+    # Ports (for reference - host mode doesn't need port mapping):
+    # - 5060: SIP UDP/TCP (Asterisk PBX)
+
   drachtio:
     image: drachtio/drachtio-server:latest
     container_name: drachtio
@@ -12,13 +27,15 @@ services:
     network_mode: host
     command: >
       drachtio
-      --contact "sip:*:5060;transport=tcp,udp"
+      --contact "sip:*:${DRACHTIO_SIP_PORT:-5070};transport=tcp,udp"
       --external-ip ${EXTERNAL_IP}
       --secret ${DRACHTIO_SECRET:-cymru}
       --port 9022
       --loglevel info
+    depends_on:
+      - asterisk
     # Ports (for reference - host mode doesn't need port mapping):
-    # - 5060: SIP UDP/TCP
+    # - 5070: SIP UDP/TCP (drachtio, avoids conflict with Asterisk on 5060)
     # - 9022: Admin/App Port
 
   freeswitch:
@@ -36,13 +53,15 @@ services:
       --advertise-external-ip
     environment:
       # CRITICAL: Set this to your server's LAN IP
-      # This IP goes into SDP packets so 3CX knows where to send audio
+      # This IP goes into SDP packets so Asterisk knows where to send audio
       # Note: drachtio-freeswitch-mrf only accepts CLI flags, not env vars
       - EXTERNAL_IP=${EXTERNAL_IP}
+    depends_on:
+      - asterisk
     # Ports (for reference):
     # - 8021: ESL (Event Socket Library)
     # - 5080: Internal SIP
-    # - 30000-30100: RTP Audio (changed from 20000-20100 to avoid conflict with 3CX SBC)
+    # - 30000-30100: RTP Audio
 
   voice-app:
     build: ./voice-app
@@ -59,6 +78,7 @@ services:
     depends_on:
       - drachtio
       - freeswitch
+      - asterisk
     # Ports (for reference):
     # - 3000: HTTP API
     # - 3001: WebSocket for audio streaming

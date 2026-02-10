@@ -7,8 +7,8 @@
  * Each device has:
  * - name: Human-readable identifier (e.g., "Cephanie", "Morpheus")
  * - extension: SIP extension number (e.g., "9002")
- * - authId: 3CX authentication ID for SIP REGISTER
- * - password: 3CX authentication password
+ * - authId: SIP authentication ID for REGISTER (matches Asterisk pjsip.conf)
+ * - password: SIP authentication password
  * - voiceId: ElevenLabs voice ID for TTS
  * - prompt: System prompt that defines device personality
  */
@@ -23,10 +23,10 @@ const CONFIG_PATH = path.join(__dirname, '../config/devices.json');
 const MORPHEUS_DEFAULT = {
   name: 'Morpheus',
   extension: '9000',
-  authId: 'Au0XZPTpJY',
-  password: 'DGHwMW6v25',
+  authId: '9000',
+  password: 'claude9000',
   voiceId: 'JAgnJveGGUh4qy4kh6dF',
-  prompt: 'You are Morpheus, Chuck\'s principal AI assistant. You are meticulous, systematic, and excellence-driven. Keep voice responses under 40 words.'
+  prompt: 'You are Morpheus, the principal AI assistant. You are meticulous, systematic, and excellence-driven. Keep voice responses under 40 words.'
 };
 
 class DeviceRegistry {

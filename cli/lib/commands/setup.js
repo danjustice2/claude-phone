@@ -20,7 +20,7 @@ import {
 } from '../validators.js';
 import { getLocalIP, getProjectRoot } from '../utils.js';
 import { isRaspberryPi } from '../platform.js';
-import { detect3cxSbc } from '../port-check.js';
+import { checkPort } from '../port-check.js';
 import { checkPiPrerequisites } from '../prerequisites.js';
 import { checkClaudeApiServer } from '../network.js';
 import { runPrereqChecks } from '../prereqs.js';
@@ -315,7 +315,7 @@ async function setupVoiceServer(config) {
     config.deployment.mode = 'voice-server';
   }
 
-  // Step 1: 3CX/SIP Configuration
+  // Step 1: Asterisk/SIP Configuration
   console.log(chalk.bold('\n☎️  SIP Configuration'));
   config = await setupSIP(config);
 
@@ -429,7 +429,7 @@ async function setupBoth(config) {
   console.log(chalk.bold('\n📡 API Configuration'));
   config = await setupAPIKeys(config);
 
-  // Step 2: 3CX/SIP Configuration
+  // Step 2: Asterisk/SIP Configuration
   console.log(chalk.bold('\n☎️  SIP Configuration'));
   config = await setupSIP(config);
 
@@ -518,47 +518,12 @@ async function setupPi(config) {
     }
   }
 
-  // Detect 3CX SBC (AC24: Handle port detection failure)
-  console.log(chalk.bold('\n🔍 Network Detection'));
-  const sbc3cxSpinner = ora('Checking for 3CX SBC (process + UDP/TCP port 5060)...').start();
+  // Configure ports: Asterisk on 5060, drachtio on 5070
+  console.log(chalk.bold('\n🔍 Network Configuration'));
+  console.log(chalk.green('✓ Asterisk PBX will use port 5060'));
+  console.log(chalk.green('✓ drachtio will use port 5070 (avoids conflict with Asterisk)\n'));
 
-  let has3cxSbc;
-  let portCheckError = false;
-
-  try {
-    has3cxSbc = await detect3cxSbc();
-    if (has3cxSbc) {
-      sbc3cxSpinner.succeed('3CX SBC detected - will use port 5070 for drachtio');
-    } else {
-      sbc3cxSpinner.succeed('No 3CX SBC detected - will use standard port 5060');
-    }
-  } catch (err) {
-    portCheckError = true;
-    sbc3cxSpinner.warn('Port detection failed: ' + err.message);
-  }
-
-  // AC24: Manual override when port detection fails
-  if (portCheckError) {
-    console.log(chalk.yellow('\n⚠️  Could not automatically detect 3CX SBC'));
-    const { manualSbc } = await inquirer.prompt([
-      {
-        type: 'confirm',
-        name: 'manualSbc',
-        message: 'Is 3CX SBC running on port 5060?',
-        default: false
-      }
-    ]);
-    has3cxSbc = manualSbc;
-
-    if (has3cxSbc) {
-      console.log(chalk.green('✓ Will use port 5070 for drachtio (avoid conflict with SBC)\n'));
-    } else {
-      console.log(chalk.green('✓ Will use port 5060 for drachtio\n'));
-    }
-  }
-
-  config.deployment.pi.has3cxSbc = has3cxSbc;
-  config.deployment.pi.drachtioPort = has3cxSbc ? 5070 : 5060;
+  config.deployment.pi.drachtioPort = 5070;
 
   // Ask for API server IP and port first, then check connectivity
   const apiServerAnswers = await inquirer.prompt([
@@ -617,8 +582,8 @@ async function setupPi(config) {
   console.log(chalk.bold('\n📡 API Configuration'));
   config = await setupAPIKeys(config);
 
-  // Step 2: 3CX SBC Configuration (Pi mode uses SBC)
-  console.log(chalk.bold('\n📡 3CX SBC Connection'));
+  // Step 2: Asterisk/SIP Configuration (Pi mode)
+  console.log(chalk.bold('\n📡 Asterisk SIP Configuration'));
   config = await setupSBC(config);
 
   // Step 3: Device Configuration
@@ -831,22 +796,22 @@ async function setupAPIKeys(config) {
 
 /**
  * Setup SIP configuration (standard mode)
+ * Uses local Asterisk by default
  * @param {object} config - Current config
  * @returns {Promise<object>} Updated config
  */
 async function setupSIP(config) {
+  console.log(chalk.gray('  Asterisk PBX runs locally in Docker. Default settings work for most setups.\n'));
+
   const answers = await inquirer.prompt([
     {
       type: 'input',
       name: 'domain',
-      message: '3CX domain (e.g., your-3cx.3cx.us):',
-      default: config.sip.domain,
+      message: 'SIP domain (used in SIP headers):',
+      default: config.sip.domain || 'claude-phone.local',
       validate: (input) => {
         if (!input || input.trim() === '') {
           return 'SIP domain is required';
-        }
-        if (!validateHostname(input)) {
-          return 'Invalid hostname format';
         }
         return true;
       }
@@ -854,8 +819,8 @@ async function setupSIP(config) {
     {
       type: 'input',
       name: 'registrar',
-      message: '3CX registrar IP (e.g., 192.168.1.100):',
-      default: config.sip.registrar,
+      message: 'Asterisk registrar IP (127.0.0.1 for local Docker):',
+      default: config.sip.registrar || '127.0.0.1',
       validate: (input) => {
         if (!input || input.trim() === '') {
           return 'SIP registrar IP is required';
@@ -875,36 +840,32 @@ async function setupSIP(config) {
 }
 
 /**
- * Setup SBC configuration (Pi mode only)
+ * Setup SIP configuration (Pi mode)
+ * Uses local Asterisk by default
  * @param {object} config - Current config
  * @returns {Promise<object>} Updated config
  */
 async function setupSBC(config) {
-  // Display pre-requisite information
-  console.log(chalk.cyan('\nℹ️  Pre-requisite: You must create an SBC in 3CX Admin first'));
-  console.log(chalk.gray('   (Admin → Settings → SBC → Add SBC → Raspberry Pi)\n'));
+  console.log(chalk.cyan('\nℹ️  Asterisk PBX runs locally in Docker alongside the voice-app.\n'));
 
   const answers = await inquirer.prompt([
     {
       type: 'input',
-      name: 'fqdn',
-      message: '3CX FQDN (e.g., mycompany.3cx.us):',
-      default: config.sip.domain,
+      name: 'domain',
+      message: 'SIP domain (used in SIP headers):',
+      default: config.sip.domain || 'claude-phone.local',
       validate: (input) => {
         if (!input || input.trim() === '') {
-          return '3CX FQDN is required';
-        }
-        if (!validateHostname(input)) {
-          return 'Invalid hostname format';
+          return 'SIP domain is required';
         }
         return true;
       }
     }
   ]);
 
-  // Domain is the 3CX FQDN (for From/To SIP headers)
-  config.sip.domain = answers.fqdn;
-  // Registrar is the LOCAL SBC (drachtio registers with local SBC, not cloud)
+  // Domain for SIP headers
+  config.sip.domain = answers.domain;
+  // Registrar is the local Asterisk
   config.sip.registrar = '127.0.0.1';
 
   return config;
