@@ -3,7 +3,7 @@ import assert from 'node:assert';
 import { generateDockerCompose, generateEnvFile } from '../lib/docker.js';
 
 test('docker compose generation', async (t) => {
-  await t.test('generates compose with default port 5060 when no drachtioPort specified', () => {
+  await t.test('generates compose with default port 5070 when no drachtioPort specified', () => {
     const config = {
       server: {
         externalIp: '192.168.1.50',
@@ -21,9 +21,9 @@ test('docker compose generation', async (t) => {
 
     const compose = generateDockerCompose(config);
 
-    // Should use default port 5060 in drachtio command
-    assert.ok(compose.includes('--contact "sip:*:5060;transport=tcp,udp"'),
-      'Should use port 5060 by default');
+    // Should use default port 5070 (Asterisk uses 5060)
+    assert.ok(compose.includes('--contact "sip:*:5070;transport=tcp,udp"'),
+      'Should use port 5070 by default (Asterisk uses 5060)');
   });
 
   await t.test('generates compose with port 5070 when drachtioPort is 5070', () => {
