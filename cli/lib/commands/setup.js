@@ -795,12 +795,51 @@ async function setupAPIKeys(config) {
 }
 
 /**
+ * Detect stale 3CX configuration
+ * @param {object} config - Current config
+ * @returns {boolean} True if config appears to be from 3CX era
+ */
+function detect3cxConfig(config) {
+  if (!config.sip || !config.sip.domain) return false;
+  return /\.3cx\./i.test(config.sip.domain);
+}
+
+/**
+ * Prompt user to reset stale 3CX SIP settings to Asterisk defaults
+ * @param {object} config - Current config
+ * @returns {Promise<object>} Config with SIP values possibly reset
+ */
+async function offer3cxMigration(config) {
+  if (!detect3cxConfig(config)) return config;
+
+  console.log(chalk.yellow('\n⚠️  Detected old 3CX configuration (domain: ' + config.sip.domain + ')'));
+  console.log(chalk.gray('  This project now uses a local Asterisk PBX instead of 3CX.'));
+  console.log(chalk.gray('  The old 3CX SIP settings won\'t work with the new setup.\n'));
+
+  const { resetSip } = await inquirer.prompt([{
+    type: 'confirm',
+    name: 'resetSip',
+    message: 'Reset SIP settings to Asterisk defaults?',
+    default: true
+  }]);
+
+  if (resetSip) {
+    config.sip.domain = '';
+    config.sip.registrar = '';
+    console.log(chalk.green('  ✓ SIP settings reset. Asterisk defaults will be used below.\n'));
+  }
+
+  return config;
+}
+
+/**
  * Setup SIP configuration (standard mode)
  * Uses local Asterisk by default
  * @param {object} config - Current config
  * @returns {Promise<object>} Updated config
  */
 async function setupSIP(config) {
+  config = await offer3cxMigration(config);
   console.log(chalk.gray('  Asterisk PBX runs locally in Docker. Default settings work for most setups.\n'));
 
   const answers = await inquirer.prompt([
@@ -846,6 +885,7 @@ async function setupSIP(config) {
  * @returns {Promise<object>} Updated config
  */
 async function setupSBC(config) {
+  config = await offer3cxMigration(config);
   console.log(chalk.cyan('\nℹ️  Asterisk PBX runs locally in Docker alongside the voice-app.\n'));
 
   const answers = await inquirer.prompt([
