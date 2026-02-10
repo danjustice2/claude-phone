@@ -154,7 +154,7 @@ claude-phone/
 
 ```bash
 # One-line install
-curl -sSL https://raw.githubusercontent.com/theNetworkChuck/claude-phone/main/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/danjustice2/claude-phone/main/install.sh | bash
 
 # Setup and run
 claude-phone setup    # Interactive configuration

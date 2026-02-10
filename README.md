@@ -49,7 +49,7 @@ This fork replaces the proprietary 3CX cloud PBX with **Asterisk**, a free and o
 ### 1. Install
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/theNetworkChuck/claude-phone/main/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/danjustice2/claude-phone/main/install.sh | bash
 ```
 
 The installer will:
