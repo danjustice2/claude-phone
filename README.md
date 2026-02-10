@@ -8,6 +8,8 @@ Voice interface for Claude Code via SIP/Asterisk. Call your AI, and your AI can 
 
 > Forked from [theNetworkChuck/claude-phone](https://github.com/theNetworkChuck/claude-phone) and adapted to use [Asterisk](https://www.asterisk.org/) (open-source PBX) instead of 3CX.
 
+**New here?** Check out the **[Getting Started Guide](docs/GETTING-STARTED.md)** for a detailed step-by-step walkthrough, including how to find your API keys, configure a softphone, and verify everything works.
+
 ## What is this?
 
 Claude Phone gives your Claude Code installation a phone number. You can:
@@ -34,7 +36,7 @@ This fork replaces the proprietary 3CX cloud PBX with **Asterisk**, a free and o
 | **ElevenLabs API Key** | [elevenlabs.io](https://elevenlabs.io/) | For text-to-speech |
 | **OpenAI API Key** | [platform.openai.com](https://platform.openai.com/) | For Whisper speech-to-text |
 | **Claude Code CLI** | [claude.ai/code](https://claude.ai/code) | Requires Claude Max subscription |
-| **SIP Softphone** | [Ooh la SIP](https://ooh.la/) / [Ooh la SIP - iOS](https://apps.apple.com/app/ooh-la-sip/id6740046500) / [Ooh la SIP - Android](https://play.google.com/store/apps/details?id=la.ooh.ooh_la_sip) / [Ooh la SIP - Desktop](https://ooh.la/) | To make calls to the AI |
+| **SIP Softphone** | [Linphone](https://www.linphone.org/) (iOS, Android, Windows, Mac, Linux) or [MicroSIP](https://www.microsip.org/) (Windows) | To make calls to the AI |
 
 ## Platform Support
 
@@ -97,7 +99,7 @@ claude-phone start
 
 ### 5. Connect your SIP phone
 
-Register a SIP softphone with Asterisk using these settings:
+Register a SIP softphone ([Linphone](https://www.linphone.org/) recommended) with Asterisk using these settings:
 
 | Setting | Value |
 |---------|-------|
@@ -304,6 +306,7 @@ npm run lint:fix
 
 ## Documentation
 
+- [Getting Started](docs/GETTING-STARTED.md) - Step-by-step first-time setup
 - [CLI Reference](cli/README.md) - Detailed CLI documentation
 - [Troubleshooting](docs/TROUBLESHOOTING.md) - Common issues and solutions
 - [Outbound API](voice-app/README-OUTBOUND.md) - Outbound calling API reference
