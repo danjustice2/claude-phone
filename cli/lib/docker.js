@@ -1,6 +1,7 @@
 import { spawn, execSync } from 'child_process';
 import crypto from 'crypto';
 import fs from 'fs';
+import path from 'path';
 import {
   getDockerComposePath,
   getEnvPath,
@@ -107,16 +108,18 @@ export function generateDockerCompose(config) {
   const freeswitchImage = 'drachtio/drachtio-freeswitch-mrf:latest';
   const platformLine = isPiMode ? '\n    platform: linux/arm64' : '';
 
-  // Determine asterisk path
-  const asteriskPath = config.paths.asterisk || '';
+  // Determine asterisk path (derive from voiceApp if not set — supports pre-existing configs)
+  const projectRoot = path.dirname(config.paths.voiceApp);
+  const asteriskPath = config.paths.asterisk || path.join(projectRoot, 'asterisk');
 
   // Optional admin service
   let adminService = '';
-  if (config.admin && config.admin.enabled && config.paths.admin) {
+  if (config.admin && config.admin.enabled) {
+    const adminPath = config.paths.admin || path.join(projectRoot, 'admin');
     const adminPort = config.admin.port || 8080;
     adminService = `
   admin:
-    build: ${config.paths.admin}
+    build: ${adminPath}
     container_name: claude-phone-admin
     restart: unless-stopped
     network_mode: host
