@@ -74,41 +74,35 @@ The setup wizard asks what you're installing:
 | **API Server** | Mac/Linux with Claude Code | Just the Claude API wrapper |
 | **Both** | All-in-one single machine | Everything on one box |
 
-### 3. Configure your devices
-
-Edit `voice-app/config/devices.json` with your extensions. Asterisk auto-generates matching SIP credentials from this file:
-
-```json
-{
-  "9000": {
-    "name": "Assistant",
-    "extension": "9000",
-    "authId": "9000",
-    "password": "claude9000",
-    "voiceId": "your-elevenlabs-voice-id",
-    "prompt": "You are a helpful AI assistant. Keep voice responses under 40 words."
-  }
-}
-```
-
-### 4. Start
+### 3. Start
 
 ```bash
 claude-phone start
 ```
 
-### 5. Connect your SIP phone
+This generates `devices.json` and `.env` from your setup config, then launches all Docker containers (Asterisk, drachtio, FreeSWITCH, voice-app) and the Claude API server.
 
-Register a SIP softphone ([Linphone](https://www.linphone.org/) recommended) with Asterisk using these settings:
+### 4. Connect your SIP phone
+
+There are two types of extensions in Claude Phone:
+
+| Type | Example | Purpose |
+|------|---------|---------|
+| **User phone extensions** | 1001, 1002 | Your SIP softphone registers as one of these |
+| **Device extensions** | 9000 | Claude AI personality that answers calls |
+
+Register a SIP softphone ([Linphone](https://www.linphone.org/) recommended) with Asterisk as a **user phone extension**:
 
 | Setting | Value |
 |---------|-------|
 | Server | Your server's LAN IP |
 | Port | 5060 |
 | Username | 1001 |
-| Password | changeme (or your USER_EXT_PASSWORD) |
+| Password | changeme (or your `USER_EXT_PASSWORD` from `.env`) |
 
-Then dial **9000** to talk to Claude!
+### 5. Call Claude
+
+Dial **9000** from your softphone to talk to Claude!
 
 ## Architecture
 
@@ -236,14 +230,17 @@ Example devices:
 
 ## Asterisk Configuration
 
-Asterisk auto-generates its PJSIP configuration from `voice-app/config/devices.json` on startup. It also creates default user phone extensions (1001, 1002) for SIP softphones.
+Asterisk auto-generates its PJSIP configuration on container startup from two sources:
+
+- **Device extensions** (9000, etc.) — generated from `voice-app/config/devices.json`. These are the Claude AI endpoints that the voice-app registers via drachtio.
+- **User phone extensions** (1001, 1002) — hardcoded in `asterisk/entrypoint.sh`. These are for your SIP softphone to register with.
 
 ### User Phone Extensions
 
 | Extension | Username | Password | Notes |
 |-----------|----------|----------|-------|
-| 1001 | 1001 | changeme | Set USER_EXT_PASSWORD in .env |
-| 1002 | 1002 | changeme | Set USER_EXT_PASSWORD in .env |
+| 1001 | 1001 | changeme | Set `USER_EXT_PASSWORD` in `.env` to change |
+| 1002 | 1002 | changeme | Set `USER_EXT_PASSWORD` in `.env` to change |
 
 ### Adding a SIP Trunk (for PSTN)
 
