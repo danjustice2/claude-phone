@@ -401,6 +401,9 @@ async function setupVoiceServer(config) {
   config.server.externalIp = serverAnswers.externalIp;
   config.server.httpPort = parseInt(serverAnswers.httpPort, 10);
 
+  // Step 6: Optional Admin Panel
+  config = await promptAdminPanel(config);
+
   return config;
 }
 
@@ -440,6 +443,9 @@ async function setupBoth(config) {
   // Step 4: Server Configuration
   console.log(chalk.bold('\n⚙️  Server Configuration'));
   config = await setupServer(config);
+
+  // Step 5: Optional Admin Panel
+  config = await promptAdminPanel(config);
 
   return config;
 }
@@ -654,7 +660,9 @@ function createDefaultConfig() {
     devices: [],
     paths: {
       voiceApp: path.join(getProjectRoot(), 'voice-app'),
-      claudeApiServer: path.join(getProjectRoot(), 'claude-api-server')
+      claudeApiServer: path.join(getProjectRoot(), 'claude-api-server'),
+      asterisk: path.join(getProjectRoot(), 'asterisk'),
+      admin: path.join(getProjectRoot(), 'admin')
     }
   };
 }
@@ -973,7 +981,7 @@ async function setupDevice(config) {
       type: 'input',
       name: 'voiceId',
       message: 'ElevenLabs voice ID:',
-      default: existingDevice?.voiceId || config.api.elevenlabs.defaultVoiceId || '',
+      default: config.api.elevenlabs.defaultVoiceId || existingDevice?.voiceId || '',
       validate: (input) => {
         if (!input || input.trim() === '') {
           return 'Voice ID is required';
@@ -1034,6 +1042,50 @@ async function setupDevice(config) {
     config.devices[0] = device;
   } else {
     config.devices.push(device);
+  }
+
+  return config;
+}
+
+/**
+ * Prompt for optional admin web panel
+ * @param {object} config - Current config
+ * @returns {Promise<object>} Updated config
+ */
+async function promptAdminPanel(config) {
+  console.log(chalk.bold('\n🖥️  Admin Panel'));
+
+  const { enableAdmin } = await inquirer.prompt([{
+    type: 'confirm',
+    name: 'enableAdmin',
+    message: 'Enable web admin panel? (shows extension status, active calls)',
+    default: config.admin?.enabled || false
+  }]);
+
+  if (enableAdmin) {
+    const { adminPort } = await inquirer.prompt([{
+      type: 'input',
+      name: 'adminPort',
+      message: 'Admin panel port:',
+      default: config.admin?.port || 8080,
+      validate: (input) => {
+        const port = parseInt(input, 10);
+        if (isNaN(port) || port < 1024 || port > 65535) {
+          return 'Port must be between 1024 and 65535';
+        }
+        return true;
+      }
+    }]);
+
+    config.admin = {
+      enabled: true,
+      port: parseInt(adminPort, 10),
+      amiSecret: config.admin?.amiSecret || generateSecret()
+    };
+
+    console.log(chalk.green(`  ✓ Admin panel will be available at http://YOUR_IP:${adminPort}`));
+  } else {
+    config.admin = { enabled: false };
   }
 
   return config;

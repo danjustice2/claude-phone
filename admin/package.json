@@ -1,0 +1,13 @@
+{
+  "name": "claude-phone-admin",
+  "version": "1.0.0",
+  "description": "Web admin panel for Claude Phone Asterisk PBX",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "asterisk-manager": "^0.2.1",
+    "express": "^4.21.0"
+  }
+}

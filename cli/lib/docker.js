@@ -107,6 +107,32 @@ export function generateDockerCompose(config) {
   const freeswitchImage = 'drachtio/drachtio-freeswitch-mrf:latest';
   const platformLine = isPiMode ? '\n    platform: linux/arm64' : '';
 
+  // Determine asterisk path
+  const asteriskPath = config.paths.asterisk || '';
+
+  // Optional admin service
+  let adminService = '';
+  if (config.admin && config.admin.enabled && config.paths.admin) {
+    const adminPort = config.admin.port || 8080;
+    adminService = `
+  admin:
+    build: ${config.paths.admin}
+    container_name: claude-phone-admin
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      - AMI_HOST=127.0.0.1
+      - AMI_PORT=5038
+      - AMI_SECRET=\${AMI_SECRET}
+      - ADMIN_PORT=${adminPort}
+      - DEVICES_CONFIG=/app/config/devices.json
+    volumes:
+      - ${config.paths.voiceApp}/config:/app/config:ro
+    depends_on:
+      - asterisk
+`;
+  }
+
   return `version: '3.8'
 
 # CRITICAL: All containers must use network_mode: host
@@ -114,6 +140,20 @@ export function generateDockerCompose(config) {
 # in SDP, making RTP unreachable from external callers.
 
 services:
+  asterisk:
+    build: ${asteriskPath}
+    container_name: asterisk
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      - EXTERNAL_IP=${externalIp}
+      - ASTERISK_SIP_PORT=5060
+      - USER_EXT_PASSWORD=\${USER_EXT_PASSWORD}
+      - AMI_ENABLED=\${AMI_ENABLED:-false}
+      - AMI_SECRET=\${AMI_SECRET:-}
+    volumes:
+      - ${config.paths.voiceApp}/config:/app/config:ro
+
   drachtio:
     image: ${drachtioImage}${platformLine}
     container_name: drachtio
@@ -125,6 +165,8 @@ services:
       --secret \${DRACHTIO_SECRET}
       --port 9022
       --loglevel info
+    depends_on:
+      - asterisk
 
   freeswitch:
     image: ${freeswitchImage}${platformLine}
@@ -139,6 +181,8 @@ services:
     # RTP ports 30000-30100
     environment:
       - EXTERNAL_IP=${externalIp}
+    depends_on:
+      - asterisk
 
   voice-app:
     build: ${config.paths.voiceApp}
@@ -153,7 +197,7 @@ services:
     depends_on:
       - drachtio
       - freeswitch
-`;
+${adminService}`;
 }
 
 /**
@@ -234,6 +278,8 @@ export function generateEnvFile(config) {
     '',
     '# Asterisk PBX',
     `USER_EXT_PASSWORD=${config.sip?.userExtPassword || 'changeme'}`,
+    `AMI_ENABLED=${config.admin?.enabled ? 'true' : 'false'}`,
+    `AMI_SECRET=${config.admin?.enabled ? (config.admin.amiSecret || generateSecret()) : ''}`,
     '',
     '# Outbound Call Settings',
     'MAX_CONVERSATION_TURNS=10',

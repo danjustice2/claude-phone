@@ -11,7 +11,8 @@ test('docker compose generation', async (t) => {
         claudeApiPort: 3333
       },
       paths: {
-        voiceApp: '/app/voice-app'
+        voiceApp: '/app/voice-app',
+        asterisk: '/app/asterisk'
       },
       secrets: {
         drachtio: 'test-secret-123',
@@ -34,7 +35,8 @@ test('docker compose generation', async (t) => {
         claudeApiPort: 3333
       },
       paths: {
-        voiceApp: '/app/voice-app'
+        voiceApp: '/app/voice-app',
+        asterisk: '/app/asterisk'
       },
       secrets: {
         drachtio: 'test-secret-123',
@@ -62,7 +64,8 @@ test('docker compose generation', async (t) => {
         claudeApiPort: 3333
       },
       paths: {
-        voiceApp: '/app/voice-app'
+        voiceApp: '/app/voice-app',
+        asterisk: '/app/asterisk'
       },
       secrets: {
         drachtio: 'test-secret-123',
@@ -89,7 +92,8 @@ test('docker compose generation', async (t) => {
         claudeApiPort: 3333
       },
       paths: {
-        voiceApp: '/app/voice-app'
+        voiceApp: '/app/voice-app',
+        asterisk: '/app/asterisk'
       },
       secrets: {
         drachtio: 'test-secret-123',
@@ -109,6 +113,150 @@ test('docker compose generation', async (t) => {
     assert.ok(compose.includes('--sip-port 5080'), 'FreeSWITCH should use port 5080');
     assert.ok(compose.includes('--port 9022'), 'Drachtio should use port 9022');
     assert.ok(compose.includes('EXTERNAL_IP=192.168.1.50'), 'Should use configured external IP');
+  });
+
+  await t.test('includes asterisk service in generated compose', () => {
+    const config = {
+      server: {
+        externalIp: '192.168.1.50',
+        httpPort: 3000,
+        claudeApiPort: 3333
+      },
+      paths: {
+        voiceApp: '/app/voice-app',
+        asterisk: '/app/asterisk'
+      },
+      secrets: {
+        drachtio: 'test-secret-123',
+        freeswitch: 'test-secret-456'
+      }
+    };
+
+    const compose = generateDockerCompose(config);
+
+    assert.ok(compose.includes('asterisk:'), 'Should include asterisk service');
+    assert.ok(compose.includes('container_name: asterisk'), 'Should set asterisk container name');
+    assert.ok(compose.includes('build: /app/asterisk'), 'Should build from asterisk path');
+    assert.ok(compose.includes('ASTERISK_SIP_PORT=5060'), 'Should set Asterisk SIP port');
+    assert.ok(compose.includes('USER_EXT_PASSWORD'), 'Should pass USER_EXT_PASSWORD');
+  });
+
+  await t.test('drachtio and freeswitch depend on asterisk', () => {
+    const config = {
+      server: {
+        externalIp: '192.168.1.50',
+        httpPort: 3000,
+        claudeApiPort: 3333
+      },
+      paths: {
+        voiceApp: '/app/voice-app',
+        asterisk: '/app/asterisk'
+      },
+      secrets: {
+        drachtio: 'test-secret-123',
+        freeswitch: 'test-secret-456'
+      }
+    };
+
+    const compose = generateDockerCompose(config);
+
+    // Both drachtio and freeswitch should depend on asterisk
+    const drachtioSection = compose.split('drachtio:')[1].split('freeswitch:')[0];
+    assert.ok(drachtioSection.includes('- asterisk'), 'drachtio should depend on asterisk');
+
+    const freeswitchSection = compose.split('freeswitch:')[1].split('voice-app:')[0];
+    assert.ok(freeswitchSection.includes('- asterisk'), 'freeswitch should depend on asterisk');
+  });
+
+  await t.test('includes admin service when admin is enabled', () => {
+    const config = {
+      server: {
+        externalIp: '192.168.1.50',
+        httpPort: 3000,
+        claudeApiPort: 3333
+      },
+      paths: {
+        voiceApp: '/app/voice-app',
+        asterisk: '/app/asterisk',
+        admin: '/app/admin'
+      },
+      secrets: {
+        drachtio: 'test-secret-123',
+        freeswitch: 'test-secret-456'
+      },
+      admin: {
+        enabled: true,
+        port: 8080
+      }
+    };
+
+    const compose = generateDockerCompose(config);
+
+    assert.ok(compose.includes('admin:'), 'Should include admin service');
+    assert.ok(compose.includes('container_name: claude-phone-admin'), 'Should set admin container name');
+    assert.ok(compose.includes('build: /app/admin'), 'Should build from admin path');
+    assert.ok(compose.includes('ADMIN_PORT=8080'), 'Should set admin port');
+    assert.ok(compose.includes('AMI_SECRET'), 'Should pass AMI_SECRET');
+  });
+
+  await t.test('excludes admin service when admin is not enabled', () => {
+    const config = {
+      server: {
+        externalIp: '192.168.1.50',
+        httpPort: 3000,
+        claudeApiPort: 3333
+      },
+      paths: {
+        voiceApp: '/app/voice-app',
+        asterisk: '/app/asterisk'
+      },
+      secrets: {
+        drachtio: 'test-secret-123',
+        freeswitch: 'test-secret-456'
+      }
+    };
+
+    const compose = generateDockerCompose(config);
+
+    assert.ok(!compose.includes('claude-phone-admin'), 'Should not include admin service when not enabled');
+  });
+
+  await t.test('generates env file with AMI_ENABLED when admin is enabled', () => {
+    const config = {
+      server: {
+        externalIp: '192.168.1.50',
+        httpPort: 3000,
+        claudeApiPort: 3333
+      },
+      sip: {
+        domain: 'claude-phone.local',
+        registrar: '127.0.0.1'
+      },
+      devices: [{
+        extension: '9000',
+        authId: '9000',
+        password: 'pass123',
+        voiceId: 'voice-id'
+      }],
+      api: {
+        elevenlabs: { apiKey: 'elev-key' },
+        openai: { apiKey: 'openai-key' }
+      },
+      secrets: {
+        drachtio: 'drachtio-secret',
+        freeswitch: 'fs-secret'
+      },
+      admin: {
+        enabled: true,
+        port: 8080,
+        amiSecret: 'test-ami-secret'
+      }
+    };
+
+    const envFile = generateEnvFile(config);
+
+    assert.ok(envFile.includes('AMI_ENABLED=true'), 'Should set AMI_ENABLED=true when admin enabled');
+    assert.ok(envFile.includes('AMI_SECRET=test-ami-secret'), 'Should include AMI_SECRET');
   });
 
   await t.test('generates env file with Mac API URL for pi-split mode', () => {

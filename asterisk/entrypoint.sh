@@ -222,6 +222,41 @@ EOF
 echo "[ASTERISK] extensions.conf generated"
 
 # ============================================================
+# Generate manager.conf (AMI) if enabled
+# ============================================================
+
+MANAGER_CONF="/etc/asterisk/manager.conf"
+
+if [ "$AMI_ENABLED" = "true" ] && [ -n "$AMI_SECRET" ]; then
+  echo "[ASTERISK] AMI enabled, generating manager.conf..."
+
+  cat > "$MANAGER_CONF" << EOF
+;
+; Auto-generated AMI configuration for Claude Phone admin panel
+;
+
+[general]
+enabled = yes
+port = 5038
+bindaddr = 127.0.0.1
+
+[admin]
+secret = ${AMI_SECRET}
+read = system,call,agent,user
+write =
+EOF
+
+  echo "[ASTERISK] manager.conf generated (AMI on 127.0.0.1:5038)"
+else
+  # Disable AMI
+  cat > "$MANAGER_CONF" << 'EOF'
+[general]
+enabled = no
+EOF
+  echo "[ASTERISK] AMI disabled"
+fi
+
+# ============================================================
 # Fix permissions and start Asterisk
 # ============================================================
 
