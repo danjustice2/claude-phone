@@ -1,7 +1,7 @@
 FROM andrius/asterisk:latest
 
-# Install python3 for config generation
-RUN apk add --no-cache python3
+# Install python3 for config generation (andrius/asterisk is Debian-based)
+RUN apt-get update && apt-get install -y --no-install-recommends python3 && rm -rf /var/lib/apt/lists/*
 
 # Copy base config files
 COPY config/modules.conf /etc/asterisk/modules.conf

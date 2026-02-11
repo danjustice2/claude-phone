@@ -136,9 +136,7 @@ export function generateDockerCompose(config) {
 `;
   }
 
-  return `version: '3.8'
-
-# CRITICAL: All containers must use network_mode: host
+  return `# CRITICAL: All containers must use network_mode: host
 # Docker bridge networking causes FreeSWITCH to advertise internal IPs
 # in SDP, making RTP unreachable from external callers.
 
