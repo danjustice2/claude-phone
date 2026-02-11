@@ -2,7 +2,8 @@
   <img src="assets/logo.png" alt="Claude Phone" width="200">
 </p>
 
-# Claude Phone
+# Claude Phone - Asterisk
+**This is a work in progress! Use at your own risk**
 
 Voice interface for Claude Code via SIP/Asterisk. Call your AI, and your AI can call you.
 
