@@ -2,19 +2,22 @@
 set -e
 
 DEVICES_FILE="/app/config/devices.json"
+USERS_FILE="/app/config/users.json"
 PJSIP_CONF="/etc/asterisk/pjsip.conf"
+PJSIP_DEVICES_CONF="/app/config/pjsip_devices.conf"
+PJSIP_USERS_CONF="/app/config/pjsip_users.conf"
 EXTENSIONS_CONF="/etc/asterisk/extensions.conf"
 
 echo "[ASTERISK] Generating configuration..."
 
 # ============================================================
-# Generate pjsip.conf
+# Generate base pjsip.conf (global + transport + includes)
 # ============================================================
 
 cat > "$PJSIP_CONF" << 'EOF'
 ;
 ; Auto-generated PJSIP configuration for Claude Phone
-; This file is regenerated on container start from devices.json
+; Device and user extensions are included from the shared config volume
 ;
 
 [global]
@@ -38,25 +41,39 @@ external_signaling_address=${EXTERNAL_IP}
 EOF
 fi
 
-echo "" >> "$PJSIP_CONF"
+# Include device and user configs from shared volume
+cat >> "$PJSIP_CONF" << 'EOF'
 
-# Generate voice-app extensions from devices.json
+; Device extensions (Claude AI personalities) — managed by admin panel or CLI
+#include /app/config/pjsip_devices.conf
+
+; User extensions (SIP softphones) — managed by admin panel or CLI
+#include /app/config/pjsip_users.conf
+EOF
+
+echo "[ASTERISK] Base pjsip.conf generated with #include directives"
+
+# ============================================================
+# Generate pjsip_devices.conf from devices.json
+# ============================================================
+
 if [ -f "$DEVICES_FILE" ]; then
-  echo "[ASTERISK] Generating extensions from $DEVICES_FILE"
+  echo "[ASTERISK] Generating device extensions from $DEVICES_FILE"
 
   python3 << 'PYGEN'
 import json
 import os
 
 devices_file = os.environ.get('DEVICES_FILE', '/app/config/devices.json')
-pjsip_conf = os.environ.get('PJSIP_CONF', '/etc/asterisk/pjsip.conf')
+output_file = os.environ.get('PJSIP_DEVICES_CONF', '/app/config/pjsip_devices.conf')
 
 with open(devices_file) as f:
     devices = json.load(f)
 
-with open(pjsip_conf, 'a') as out:
+with open(output_file, 'w') as out:
     out.write("; ============================================================\n")
     out.write("; Voice-app extensions (registered by drachtio)\n")
+    out.write("; Auto-generated from devices.json\n")
     out.write("; ============================================================\n\n")
 
     for ext, dev in devices.items():
@@ -95,9 +112,9 @@ with open(pjsip_conf, 'a') as out:
 print('[ASTERISK]   ' + str(len(devices)) + ' voice-app extension(s) generated')
 PYGEN
 else
-  echo "[ASTERISK] WARNING: $DEVICES_FILE not found, creating default extension 9000"
+  echo "[ASTERISK] WARNING: $DEVICES_FILE not found, creating default device extension 9000"
 
-  cat >> "$PJSIP_CONF" << 'EOF'
+  cat > "$PJSIP_DEVICES_CONF" << 'EOF'
 ; ============================================================
 ; Default voice-app extension (no devices.json found)
 ; ============================================================
@@ -128,64 +145,80 @@ qualify_frequency=60
 EOF
 fi
 
-# Generate user phone extensions (for SIP softphones to register)
+echo "[ASTERISK] pjsip_devices.conf generated"
+
+# ============================================================
+# Generate pjsip_users.conf from users.json or env defaults
+# ============================================================
+
 USER_PASSWORD="${USER_EXT_PASSWORD:-changeme}"
 
-cat >> "$PJSIP_CONF" << EOF
-; ============================================================
-; User phone extensions (for SIP softphones/desk phones)
-; Register your SIP phone with these credentials
-; ============================================================
-
-; User Extension 1001
-[1001]
-type=endpoint
-context=claude-phone
-disallow=all
-allow=ulaw
-allow=alaw
-auth=1001-auth
-aors=1001
-direct_media=no
-
-[1001-auth]
-type=auth
-auth_type=userpass
-username=1001
-password=${USER_PASSWORD}
-
-[1001]
-type=aor
-max_contacts=1
-remove_existing=yes
-qualify_frequency=60
-
-; User Extension 1002
-[1002]
-type=endpoint
-context=claude-phone
-disallow=all
-allow=ulaw
-allow=alaw
-auth=1002-auth
-aors=1002
-direct_media=no
-
-[1002-auth]
-type=auth
-auth_type=userpass
-username=1002
-password=${USER_PASSWORD}
-
-[1002]
-type=aor
-max_contacts=1
-remove_existing=yes
-qualify_frequency=60
-
+# Create initial users.json if it doesn't exist
+if [ ! -f "$USERS_FILE" ]; then
+  echo "[ASTERISK] Creating initial users.json with default extensions 1001, 1002"
+  cat > "$USERS_FILE" << EOF
+{
+  "1001": { "name": "User 1001", "extension": "1001", "password": "${USER_PASSWORD}" },
+  "1002": { "name": "User 1002", "extension": "1002", "password": "${USER_PASSWORD}" }
+}
 EOF
+fi
 
-echo "[ASTERISK] pjsip.conf generated"
+# Generate pjsip_users.conf from users.json
+echo "[ASTERISK] Generating user extensions from $USERS_FILE"
+
+python3 << 'PYGEN'
+import json
+import os
+
+users_file = os.environ.get('USERS_FILE', '/app/config/users.json')
+output_file = os.environ.get('PJSIP_USERS_CONF', '/app/config/pjsip_users.conf')
+
+with open(users_file) as f:
+    users = json.load(f)
+
+with open(output_file, 'w') as out:
+    out.write("; ============================================================\n")
+    out.write("; User phone extensions (for SIP softphones/desk phones)\n")
+    out.write("; Auto-generated from users.json\n")
+    out.write("; ============================================================\n\n")
+
+    for ext, user in users.items():
+        name = user.get('name', 'User ' + ext)
+        password = user.get('password', 'changeme')
+
+        out.write('; ' + name + '\n')
+        out.write('[' + ext + ']\n')
+        out.write('type=endpoint\n')
+        out.write('context=claude-phone\n')
+        out.write('disallow=all\n')
+        out.write('allow=ulaw\n')
+        out.write('allow=alaw\n')
+        out.write('auth=' + ext + '-auth\n')
+        out.write('aors=' + ext + '\n')
+        out.write('direct_media=no\n')
+        out.write('\n')
+
+        out.write('[' + ext + '-auth]\n')
+        out.write('type=auth\n')
+        out.write('auth_type=userpass\n')
+        out.write('username=' + ext + '\n')
+        out.write('password=' + password + '\n')
+        out.write('\n')
+
+        out.write('[' + ext + ']\n')
+        out.write('type=aor\n')
+        out.write('max_contacts=1\n')
+        out.write('remove_existing=yes\n')
+        out.write('qualify_frequency=60\n')
+        out.write('\n')
+
+        print('[ASTERISK]   User extension ' + ext + ' (' + name + ') configured')
+
+print('[ASTERISK]   ' + str(len(users)) + ' user extension(s) generated')
+PYGEN
+
+echo "[ASTERISK] pjsip_users.conf generated"
 
 # ============================================================
 # Generate extensions.conf (dialplan)
@@ -242,11 +275,11 @@ bindaddr = 127.0.0.1
 
 [admin]
 secret = ${AMI_SECRET}
-read = system,call,agent,user
-write =
+read = system,call,agent,user,config
+write = system,command,config
 EOF
 
-  echo "[ASTERISK] manager.conf generated (AMI on 127.0.0.1:5038)"
+  echo "[ASTERISK] manager.conf generated (AMI on 127.0.0.1:5038, read+write)"
 else
   # Disable AMI
   cat > "$MANAGER_CONF" << 'EOF'

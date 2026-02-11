@@ -6,17 +6,36 @@
   <title>Claude Phone Admin</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #e2e8f0; padding: 24px; }
-    h1 { font-size: 24px; margin-bottom: 8px; }
-    .subtitle { color: #94a3b8; margin-bottom: 24px; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; margin-bottom: 24px; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #e2e8f0; }
+
+    /* Navigation */
+    .nav { display: flex; align-items: center; background: #1e293b; border-bottom: 1px solid #334155; padding: 0 24px; }
+    .nav-brand { font-size: 18px; font-weight: 700; margin-right: 32px; padding: 16px 0; }
+    .nav-tabs { display: flex; gap: 0; }
+    .nav-tab { padding: 16px 20px; cursor: pointer; color: #94a3b8; font-size: 14px; font-weight: 500; border-bottom: 2px solid transparent; transition: all 0.15s; }
+    .nav-tab:hover { color: #e2e8f0; background: rgba(255,255,255,0.03); }
+    .nav-tab.active { color: #60a5fa; border-bottom-color: #60a5fa; }
+    .nav-status { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 13px; color: #64748b; }
+
+    /* Content */
+    .content { padding: 24px; max-width: 1200px; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    /* Cards & Grid */
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-bottom: 24px; }
     .card { background: #1e293b; border-radius: 12px; padding: 20px; border: 1px solid #334155; }
-    .card h2 { font-size: 16px; color: #94a3b8; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .card h2 { font-size: 14px; color: #94a3b8; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
     .stat { font-size: 28px; font-weight: 700; }
     .stat-label { font-size: 13px; color: #64748b; margin-top: 4px; }
+
+    /* Tables */
     table { width: 100%; border-collapse: collapse; }
     th { text-align: left; padding: 8px 12px; color: #94a3b8; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #334155; }
-    td { padding: 10px 12px; border-bottom: 1px solid #1e293b; }
+    td { padding: 10px 12px; border-bottom: 1px solid #1e293b; font-size: 14px; }
+    .truncate { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* Badges */
     .badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }
     .badge-green { background: #064e3b; color: #34d399; }
     .badge-red { background: #7f1d1d; color: #fca5a5; }
@@ -25,109 +44,331 @@
     .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
     .dot-green { background: #34d399; }
     .dot-red { background: #f87171; }
-    .footer { margin-top: 32px; color: #475569; font-size: 13px; text-align: center; }
+
+    /* Buttons */
+    .btn { padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; transition: all 0.15s; display: inline-flex; align-items: center; gap: 6px; }
+    .btn-primary { background: #3b82f6; color: white; }
+    .btn-primary:hover { background: #2563eb; }
+    .btn-danger { background: #ef4444; color: white; }
+    .btn-danger:hover { background: #dc2626; }
+    .btn-secondary { background: #334155; color: #e2e8f0; }
+    .btn-secondary:hover { background: #475569; }
+    .btn-sm { padding: 4px 10px; font-size: 12px; }
+    .btn-ghost { background: transparent; color: #94a3b8; border: 1px solid #334155; }
+    .btn-ghost:hover { background: #1e293b; color: #e2e8f0; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+
+    /* Modal */
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 100; align-items: center; justify-content: center; }
+    .modal-overlay.open { display: flex; }
+    .modal { background: #1e293b; border-radius: 12px; border: 1px solid #334155; padding: 24px; width: 100%; max-width: 520px; max-height: 90vh; overflow-y: auto; }
+    .modal h3 { font-size: 18px; margin-bottom: 16px; }
+    .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
+
+    /* Forms */
+    .form-group { margin-bottom: 14px; }
+    .form-group label { display: block; font-size: 13px; color: #94a3b8; margin-bottom: 4px; font-weight: 500; }
+    .form-group input, .form-group textarea { width: 100%; padding: 8px 12px; background: #0f172a; border: 1px solid #334155; border-radius: 8px; color: #e2e8f0; font-size: 14px; font-family: inherit; }
+    .form-group input:focus, .form-group textarea:focus { outline: none; border-color: #3b82f6; }
+    .form-group textarea { min-height: 80px; resize: vertical; }
+    .form-group .hint { font-size: 11px; color: #64748b; margin-top: 2px; }
+    .form-error { color: #fca5a5; font-size: 12px; margin-top: 4px; }
+
+    /* Toast */
+    .toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 200; display: flex; flex-direction: column; gap: 8px; }
+    .toast { padding: 12px 20px; border-radius: 8px; font-size: 14px; font-weight: 500; animation: slideIn 0.2s ease-out; }
+    .toast-success { background: #064e3b; color: #34d399; border: 1px solid #065f46; }
+    .toast-error { background: #7f1d1d; color: #fca5a5; border: 1px solid #991b1b; }
+    @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+    /* Footer */
+    .footer { margin-top: 32px; padding: 16px 0; color: #475569; font-size: 13px; text-align: center; }
     .footer a { color: #60a5fa; text-decoration: none; }
-    .error-banner { background: #7f1d1d; border: 1px solid #991b1b; padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; color: #fca5a5; }
-    #refresh-time { color: #64748b; font-size: 13px; }
   </style>
 </head>
 <body>
-  <h1>Claude Phone Admin</h1>
-  <p class="subtitle">Asterisk PBX status dashboard &middot; <span id="refresh-time">loading...</span></p>
-  <div id="error-container"></div>
+  <nav class="nav">
+    <div class="nav-brand">Claude Phone</div>
+    <div class="nav-tabs">
+      <div class="nav-tab active" data-tab="dashboard">Dashboard</div>
+      <div class="nav-tab" data-tab="devices">Devices</div>
+      <div class="nav-tab" data-tab="users">Users</div>
+      <div class="nav-tab" data-tab="system">System</div>
+    </div>
+    <div class="nav-status">
+      <span class="status-dot" id="ami-dot"></span>
+      <span id="ami-label">AMI</span>
+      <span id="refresh-time"></span>
+    </div>
+  </nav>
 
-  <div class="grid">
-    <div class="card">
-      <h2>System</h2>
-      <div id="system-info">
-        <div class="stat" id="asterisk-version">--</div>
-        <div class="stat-label">Asterisk Version</div>
-        <div style="margin-top: 12px">
-          <span class="stat" id="uptime">--</span>
-          <div class="stat-label">Uptime</div>
+  <div class="content">
+
+    <!-- ========== DASHBOARD TAB ========== -->
+    <div class="tab-content active" id="tab-dashboard">
+      <div class="grid">
+        <div class="card">
+          <h2>Asterisk PBX</h2>
+          <div class="stat" id="asterisk-version">--</div>
+          <div class="stat-label">Version</div>
+          <div style="margin-top: 12px">
+            <span class="stat" id="uptime">--</span>
+            <div class="stat-label">Uptime</div>
+          </div>
+        </div>
+        <div class="card">
+          <h2>Active Calls</h2>
+          <div class="stat" id="active-calls">0</div>
+          <div class="stat-label">Current calls in progress</div>
+        </div>
+        <div class="card">
+          <h2>Extensions</h2>
+          <div class="stat" id="ext-count">--</div>
+          <div class="stat-label">Registered / Total</div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom: 16px">
+        <h2>SIP Endpoints</h2>
+        <table>
+          <thead><tr><th>Extension</th><th>Status</th></tr></thead>
+          <tbody id="endpoints-body">
+            <tr><td colspan="2" style="color: #64748b">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <h2>Active Channels</h2>
+        <table>
+          <thead><tr><th>Channel</th><th>Extension</th><th>State</th><th style="width:80px">Action</th></tr></thead>
+          <tbody id="channels-body">
+            <tr><td colspan="4" style="color: #64748b">No active channels</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ========== DEVICES TAB ========== -->
+    <div class="tab-content" id="tab-devices">
+      <div class="toolbar">
+        <h2 style="font-size:18px">Claude AI Devices</h2>
+        <button class="btn btn-primary" onclick="openDeviceModal()">+ Add Device</button>
+      </div>
+      <div class="card">
+        <table>
+          <thead><tr><th>Extension</th><th>Name</th><th>Auth ID</th><th>Voice ID</th><th>Prompt</th><th style="width:120px">Actions</th></tr></thead>
+          <tbody id="devices-body">
+            <tr><td colspan="6" style="color: #64748b">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ========== USERS TAB ========== -->
+    <div class="tab-content" id="tab-users">
+      <div class="toolbar">
+        <h2 style="font-size:18px">User Phone Extensions</h2>
+        <button class="btn btn-primary" onclick="openUserModal()">+ Add User</button>
+      </div>
+      <div class="card">
+        <table>
+          <thead><tr><th>Extension</th><th>Name</th><th>Password</th><th style="width:120px">Actions</th></tr></thead>
+          <tbody id="users-body">
+            <tr><td colspan="4" style="color: #64748b">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ========== SYSTEM TAB ========== -->
+    <div class="tab-content" id="tab-system">
+      <div class="grid">
+        <div class="card">
+          <h2>Asterisk PBX</h2>
+          <p style="color:#94a3b8; font-size:14px; margin-bottom:12px">Regenerate PJSIP configuration and reload Asterisk modules.</p>
+          <button class="btn btn-secondary" id="btn-reload-asterisk" onclick="reloadAsterisk()">Reload Asterisk</button>
+        </div>
+        <div class="card">
+          <h2>Voice App</h2>
+          <p style="color:#94a3b8; font-size:14px; margin-bottom:12px">Reload device registry and re-register SIP extensions.</p>
+          <button class="btn btn-secondary" id="btn-reload-voiceapp" onclick="reloadVoiceApp()">Reload Voice App</button>
+        </div>
+        <div class="card">
+          <h2>Full Reload</h2>
+          <p style="color:#94a3b8; font-size:14px; margin-bottom:12px">Regenerate all configs, reload Asterisk, and re-register devices.</p>
+          <button class="btn btn-primary" id="btn-full-reload" onclick="fullReload()">Reload Everything</button>
         </div>
       </div>
     </div>
-    <div class="card">
-      <h2>Active Calls</h2>
-      <div class="stat" id="active-calls">0</div>
-      <div class="stat-label">Current calls in progress</div>
+
+    <div class="footer">
+      <a href="https://github.com/danjustice2/claude-phone">GitHub</a>
     </div>
-    <div class="card">
-      <h2>AMI Connection</h2>
-      <div id="ami-status">
-        <span class="status-dot dot-red"></span>
-        <span>Disconnected</span>
+  </div>
+
+  <!-- ========== DEVICE MODAL ========== -->
+  <div class="modal-overlay" id="device-modal">
+    <div class="modal">
+      <h3 id="device-modal-title">Add Device</h3>
+      <form id="device-form" onsubmit="saveDevice(event)">
+        <input type="hidden" id="device-edit-ext">
+        <div class="form-group">
+          <label>Extension</label>
+          <input type="text" id="device-ext" placeholder="9001" required>
+          <div class="hint">4-5 digits, 9000+</div>
+        </div>
+        <div class="form-group">
+          <label>Name</label>
+          <input type="text" id="device-name" placeholder="Claude Assistant" required>
+        </div>
+        <div class="form-group">
+          <label>Auth ID</label>
+          <input type="text" id="device-authid" placeholder="(defaults to extension)">
+          <div class="hint">SIP authentication username</div>
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="text" id="device-password" placeholder="min 4 characters" required>
+        </div>
+        <div class="form-group">
+          <label>ElevenLabs Voice ID</label>
+          <input type="text" id="device-voiceid" placeholder="(optional)">
+        </div>
+        <div class="form-group">
+          <label>System Prompt</label>
+          <textarea id="device-prompt" placeholder="(optional) Custom system prompt for this device"></textarea>
+        </div>
+        <div id="device-form-error" class="form-error"></div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" onclick="closeModal('device-modal')">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="device-save-btn">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ========== USER MODAL ========== -->
+  <div class="modal-overlay" id="user-modal">
+    <div class="modal">
+      <h3 id="user-modal-title">Add User</h3>
+      <form id="user-form" onsubmit="saveUser(event)">
+        <input type="hidden" id="user-edit-ext">
+        <div class="form-group">
+          <label>Extension</label>
+          <input type="text" id="user-ext" placeholder="1003" required>
+          <div class="hint">4 digits, below 9000</div>
+        </div>
+        <div class="form-group">
+          <label>Name</label>
+          <input type="text" id="user-name" placeholder="Dan's Phone" required>
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="text" id="user-password" placeholder="min 4 characters" required>
+        </div>
+        <div id="user-form-error" class="form-error"></div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" onclick="closeModal('user-modal')">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="user-save-btn">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ========== CONFIRM MODAL ========== -->
+  <div class="modal-overlay" id="confirm-modal">
+    <div class="modal" style="max-width:400px">
+      <h3 id="confirm-title">Confirm</h3>
+      <p id="confirm-message" style="color:#94a3b8; margin-bottom:4px"></p>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="closeModal('confirm-modal')">Cancel</button>
+        <button class="btn btn-danger" id="confirm-btn" onclick="confirmAction()">Delete</button>
       </div>
     </div>
   </div>
 
-  <div class="card" style="margin-bottom: 16px">
-    <h2>SIP Endpoints</h2>
-    <table>
-      <thead>
-        <tr><th>Extension</th><th>Status</th></tr>
-      </thead>
-      <tbody id="endpoints-body">
-        <tr><td colspan="2" style="color: #64748b">Loading...</td></tr>
-      </tbody>
-    </table>
-  </div>
-
-  <div class="card" style="margin-bottom: 16px">
-    <h2>Claude Devices</h2>
-    <table>
-      <thead>
-        <tr><th>Extension</th><th>Name</th><th>System Prompt</th></tr>
-      </thead>
-      <tbody id="devices-body">
-        <tr><td colspan="3" style="color: #64748b">Loading...</td></tr>
-      </tbody>
-    </table>
-  </div>
-
-  <div class="card">
-    <h2>Active Channels</h2>
-    <table>
-      <thead>
-        <tr><th>Channel</th><th>Extension</th><th>State</th></tr>
-      </thead>
-      <tbody id="channels-body">
-        <tr><td colspan="3" style="color: #64748b">No active channels</td></tr>
-      </tbody>
-    </table>
-  </div>
-
-  <div class="footer">
-    <p>Read-only dashboard. Use <code>claude-phone</code> CLI to make changes.</p>
-    <p style="margin-top: 4px"><a href="https://github.com/danjustice2/claude-phone">GitHub</a></p>
-  </div>
+  <!-- Toast container -->
+  <div class="toast-container" id="toast-container"></div>
 
   <script>
-    async function fetchJSON(url) {
-      const res = await fetch(url);
-      return res.json();
+    // ============================================================
+    // Tab navigation
+    // ============================================================
+    document.querySelectorAll('.nav-tab').forEach(function(tab) {
+      tab.addEventListener('click', function() {
+        document.querySelectorAll('.nav-tab').forEach(function(t) { t.classList.remove('active'); });
+        document.querySelectorAll('.tab-content').forEach(function(c) { c.classList.remove('active'); });
+        tab.classList.add('active');
+        document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+      });
+    });
+
+    // ============================================================
+    // Toast notifications
+    // ============================================================
+    function toast(msg, type) {
+      var el = document.createElement('div');
+      el.className = 'toast toast-' + (type || 'success');
+      el.textContent = msg;
+      document.getElementById('toast-container').appendChild(el);
+      setTimeout(function() { el.remove(); }, 4000);
+    }
+
+    // ============================================================
+    // API helpers
+    // ============================================================
+    async function api(url, opts) {
+      var res = await fetch(url, Object.assign({ headers: { 'Content-Type': 'application/json' } }, opts || {}));
+      var data = await res.json();
+      if (!res.ok) throw new Error(data.error || data.errors?.join(', ') || 'Request failed');
+      return data;
     }
 
     function statusBadge(status) {
-      const s = (status || '').toLowerCase();
+      var s = (status || '').toLowerCase();
       if (s === 'avail' || s === 'reachable') return '<span class="badge badge-green">Online</span>';
       if (s === 'unavail' || s === 'unavailable' || s === 'unreachable') return '<span class="badge badge-red">Offline</span>';
-      return '<span class="badge badge-gray">' + (status || 'Unknown') + '</span>';
+      return '<span class="badge badge-gray">' + esc(status || 'Unknown') + '</span>';
     }
 
-    async function refresh() {
-      try {
-        // Fetch all data in parallel
-        const [status, endpoints, devices, channels] = await Promise.all([
-          fetchJSON('/api/status'),
-          fetchJSON('/api/endpoints'),
-          fetchJSON('/api/devices'),
-          fetchJSON('/api/channels')
-        ]);
+    function esc(s) {
+      var d = document.createElement('div');
+      d.textContent = s;
+      return d.innerHTML;
+    }
 
-        // Clear errors
-        document.getElementById('error-container').innerHTML = '';
+    // ============================================================
+    // Modal helpers
+    // ============================================================
+    function openModal(id) { document.getElementById(id).classList.add('open'); }
+    function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+    // close modals on overlay click
+    document.querySelectorAll('.modal-overlay').forEach(function(overlay) {
+      overlay.addEventListener('click', function(e) {
+        if (e.target === overlay) overlay.classList.remove('open');
+      });
+    });
+
+    // ============================================================
+    // Dashboard refresh
+    // ============================================================
+    async function refreshDashboard() {
+      try {
+        var data = await Promise.all([
+          api('/api/status'),
+          api('/api/endpoints'),
+          api('/api/channels')
+        ]);
+        var status = data[0], endpoints = data[1], channels = data[2];
+
+        // AMI indicator
+        var dot = document.getElementById('ami-dot');
+        var label = document.getElementById('ami-label');
+        dot.className = 'status-dot ' + (status.ami ? 'dot-green' : 'dot-red');
+        label.textContent = status.ami ? 'AMI Connected' : 'AMI Disconnected';
 
         // System info
         if (status.asterisk) {
@@ -136,54 +377,334 @@
           document.getElementById('active-calls').textContent = status.asterisk.currentCalls || 0;
         }
 
-        // AMI status
-        const amiEl = document.getElementById('ami-status');
-        if (status.ami) {
-          amiEl.innerHTML = '<span class="status-dot dot-green"></span><span>Connected</span>';
-        } else {
-          amiEl.innerHTML = '<span class="status-dot dot-red"></span><span>Disconnected</span>';
-        }
+        // Extension count
+        var online = 0;
+        var total = endpoints.endpoints ? endpoints.endpoints.length : 0;
+        (endpoints.endpoints || []).forEach(function(ep) {
+          if (ep.status === 'avail' || ep.status === 'reachable') online++;
+        });
+        document.getElementById('ext-count').textContent = online + ' / ' + total;
 
-        // Endpoints
-        const epBody = document.getElementById('endpoints-body');
+        // Endpoints table
+        var epBody = document.getElementById('endpoints-body');
         if (endpoints.endpoints && endpoints.endpoints.length > 0) {
-          epBody.innerHTML = endpoints.endpoints.map(ep =>
-            '<tr><td>' + ep.extension + '</td><td>' + statusBadge(ep.status) + '</td></tr>'
-          ).join('');
+          epBody.innerHTML = endpoints.endpoints.map(function(ep) {
+            return '<tr><td>' + esc(ep.extension) + '</td><td>' + statusBadge(ep.status) + '</td></tr>';
+          }).join('');
         } else {
-          epBody.innerHTML = '<tr><td colspan="2" style="color: #64748b">No endpoints found</td></tr>';
+          epBody.innerHTML = '<tr><td colspan="2" style="color:#64748b">No endpoints found</td></tr>';
         }
 
-        // Devices
-        const devBody = document.getElementById('devices-body');
-        if (devices.devices && devices.devices.length > 0) {
-          devBody.innerHTML = devices.devices.map(d =>
-            '<tr><td>' + d.extension + '</td><td>' + d.name + '</td><td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + d.prompt + '</td></tr>'
-          ).join('');
-        } else {
-          devBody.innerHTML = '<tr><td colspan="3" style="color: #64748b">No devices configured</td></tr>';
-        }
-
-        // Channels
-        const chBody = document.getElementById('channels-body');
+        // Channels table
+        var chBody = document.getElementById('channels-body');
         if (channels.channels && channels.channels.length > 0) {
-          chBody.innerHTML = channels.channels.map(ch =>
-            '<tr><td>' + ch.channel + '</td><td>' + ch.extension + '</td><td>' + ch.state + '</td></tr>'
-          ).join('');
+          chBody.innerHTML = channels.channels.map(function(ch) {
+            return '<tr><td>' + esc(ch.channel) + '</td><td>' + esc(ch.extension) + '</td><td>' + esc(ch.state) + '</td>' +
+              '<td><button class="btn btn-danger btn-sm" onclick="hangup(\'' + esc(ch.channel).replace(/'/g, "\\'") + '\')">Hangup</button></td></tr>';
+          }).join('');
         } else {
-          chBody.innerHTML = '<tr><td colspan="3" style="color: #64748b">No active channels</td></tr>';
+          chBody.innerHTML = '<tr><td colspan="4" style="color:#64748b">No active channels</td></tr>';
         }
 
-        document.getElementById('refresh-time').textContent = 'Updated ' + new Date().toLocaleTimeString();
+        document.getElementById('refresh-time').textContent = new Date().toLocaleTimeString();
       } catch (err) {
-        document.getElementById('error-container').innerHTML =
-          '<div class="error-banner">Failed to fetch status: ' + err.message + '</div>';
+        console.error('Dashboard refresh error:', err);
       }
     }
 
-    // Initial load + auto-refresh every 5 seconds
-    refresh();
-    setInterval(refresh, 5000);
+    async function hangup(channel) {
+      try {
+        await api('/api/channels/' + encodeURIComponent(channel) + '/hangup', { method: 'POST' });
+        toast('Channel hung up');
+        refreshDashboard();
+      } catch (err) {
+        toast(err.message, 'error');
+      }
+    }
+
+    // ============================================================
+    // Devices
+    // ============================================================
+    var devicesList = [];
+
+    async function refreshDevices() {
+      try {
+        var data = await api('/api/devices');
+        devicesList = data.devices || [];
+        var body = document.getElementById('devices-body');
+        if (devicesList.length > 0) {
+          body.innerHTML = devicesList.map(function(d) {
+            return '<tr>' +
+              '<td>' + esc(d.extension) + '</td>' +
+              '<td>' + esc(d.name) + '</td>' +
+              '<td>' + esc(d.authId || d.extension) + '</td>' +
+              '<td class="truncate">' + esc(d.voiceId || '--') + '</td>' +
+              '<td class="truncate">' + esc(d.prompt || '--') + '</td>' +
+              '<td>' +
+                '<button class="btn btn-ghost btn-sm" onclick="editDevice(\'' + esc(d.extension) + '\')">Edit</button> ' +
+                '<button class="btn btn-danger btn-sm" onclick="deleteDevice(\'' + esc(d.extension) + '\', \'' + esc(d.name).replace(/'/g, "\\'") + '\')">Del</button>' +
+              '</td></tr>';
+          }).join('');
+        } else {
+          body.innerHTML = '<tr><td colspan="6" style="color:#64748b">No devices configured</td></tr>';
+        }
+      } catch (err) {
+        console.error('Devices refresh error:', err);
+      }
+    }
+
+    function openDeviceModal(existing) {
+      document.getElementById('device-form').reset();
+      document.getElementById('device-form-error').textContent = '';
+      if (existing) {
+        document.getElementById('device-modal-title').textContent = 'Edit Device';
+        document.getElementById('device-edit-ext').value = existing.extension;
+        document.getElementById('device-ext').value = existing.extension;
+        document.getElementById('device-ext').disabled = true;
+        document.getElementById('device-name').value = existing.name || '';
+        document.getElementById('device-authid').value = existing.authId || '';
+        document.getElementById('device-password').value = '';
+        document.getElementById('device-password').required = false;
+        document.getElementById('device-password').placeholder = '(leave blank to keep)';
+        document.getElementById('device-voiceid').value = existing.voiceId || '';
+        document.getElementById('device-prompt').value = existing.prompt || '';
+      } else {
+        document.getElementById('device-modal-title').textContent = 'Add Device';
+        document.getElementById('device-edit-ext').value = '';
+        document.getElementById('device-ext').disabled = false;
+        document.getElementById('device-password').required = true;
+        document.getElementById('device-password').placeholder = 'min 4 characters';
+      }
+      openModal('device-modal');
+    }
+
+    async function editDevice(ext) {
+      try {
+        var dev = await api('/api/devices/' + ext);
+        openDeviceModal(dev);
+      } catch (err) {
+        toast(err.message, 'error');
+      }
+    }
+
+    async function saveDevice(e) {
+      e.preventDefault();
+      var errEl = document.getElementById('device-form-error');
+      errEl.textContent = '';
+      var editExt = document.getElementById('device-edit-ext').value;
+      var isEdit = !!editExt;
+
+      var body = {
+        name: document.getElementById('device-name').value.trim(),
+        authId: document.getElementById('device-authid').value.trim() || undefined,
+        voiceId: document.getElementById('device-voiceid').value.trim() || undefined,
+        prompt: document.getElementById('device-prompt').value.trim() || undefined
+      };
+      var pw = document.getElementById('device-password').value;
+      if (pw) body.password = pw;
+      if (!isEdit) body.extension = document.getElementById('device-ext').value.trim();
+
+      try {
+        if (isEdit) {
+          await api('/api/devices/' + editExt, { method: 'PUT', body: JSON.stringify(body) });
+          toast('Device ' + editExt + ' updated');
+        } else {
+          await api('/api/devices', { method: 'POST', body: JSON.stringify(body) });
+          toast('Device ' + body.extension + ' created');
+        }
+        closeModal('device-modal');
+        refreshDevices();
+      } catch (err) {
+        errEl.textContent = err.message;
+      }
+    }
+
+    var pendingConfirm = null;
+
+    function deleteDevice(ext, name) {
+      document.getElementById('confirm-title').textContent = 'Delete Device';
+      document.getElementById('confirm-message').textContent = 'Delete device ' + ext + ' (' + name + ')? This will remove the SIP extension and reload Asterisk.';
+      pendingConfirm = async function() {
+        try {
+          await api('/api/devices/' + ext, { method: 'DELETE' });
+          toast('Device ' + ext + ' deleted');
+          refreshDevices();
+        } catch (err) {
+          toast(err.message, 'error');
+        }
+      };
+      openModal('confirm-modal');
+    }
+
+    // ============================================================
+    // Users
+    // ============================================================
+    var usersList = [];
+
+    async function refreshUsers() {
+      try {
+        var data = await api('/api/users');
+        usersList = data.users || [];
+        var body = document.getElementById('users-body');
+        if (usersList.length > 0) {
+          body.innerHTML = usersList.map(function(u) {
+            return '<tr>' +
+              '<td>' + esc(u.extension) + '</td>' +
+              '<td>' + esc(u.name) + '</td>' +
+              '<td style="color:#64748b">********</td>' +
+              '<td>' +
+                '<button class="btn btn-ghost btn-sm" onclick="editUser(\'' + esc(u.extension) + '\')">Edit</button> ' +
+                '<button class="btn btn-danger btn-sm" onclick="deleteUser(\'' + esc(u.extension) + '\', \'' + esc(u.name).replace(/'/g, "\\'") + '\')">Del</button>' +
+              '</td></tr>';
+          }).join('');
+        } else {
+          body.innerHTML = '<tr><td colspan="4" style="color:#64748b">No users configured</td></tr>';
+        }
+      } catch (err) {
+        console.error('Users refresh error:', err);
+      }
+    }
+
+    function openUserModal(existing) {
+      document.getElementById('user-form').reset();
+      document.getElementById('user-form-error').textContent = '';
+      if (existing) {
+        document.getElementById('user-modal-title').textContent = 'Edit User';
+        document.getElementById('user-edit-ext').value = existing.extension;
+        document.getElementById('user-ext').value = existing.extension;
+        document.getElementById('user-ext').disabled = true;
+        document.getElementById('user-name').value = existing.name || '';
+        document.getElementById('user-password').value = '';
+        document.getElementById('user-password').required = false;
+        document.getElementById('user-password').placeholder = '(leave blank to keep)';
+      } else {
+        document.getElementById('user-modal-title').textContent = 'Add User';
+        document.getElementById('user-edit-ext').value = '';
+        document.getElementById('user-ext').disabled = false;
+        document.getElementById('user-password').required = true;
+        document.getElementById('user-password').placeholder = 'min 4 characters';
+      }
+      openModal('user-modal');
+    }
+
+    async function editUser(ext) {
+      try {
+        var user = await api('/api/users/' + ext);
+        openUserModal(user);
+      } catch (err) {
+        toast(err.message, 'error');
+      }
+    }
+
+    async function saveUser(e) {
+      e.preventDefault();
+      var errEl = document.getElementById('user-form-error');
+      errEl.textContent = '';
+      var editExt = document.getElementById('user-edit-ext').value;
+      var isEdit = !!editExt;
+
+      var body = {
+        name: document.getElementById('user-name').value.trim()
+      };
+      var pw = document.getElementById('user-password').value;
+      if (pw) body.password = pw;
+      if (!isEdit) {
+        body.extension = document.getElementById('user-ext').value.trim();
+        body.password = pw;
+      }
+
+      try {
+        if (isEdit) {
+          await api('/api/users/' + editExt, { method: 'PUT', body: JSON.stringify(body) });
+          toast('User ' + editExt + ' updated');
+        } else {
+          await api('/api/users', { method: 'POST', body: JSON.stringify(body) });
+          toast('User ' + body.extension + ' created');
+        }
+        closeModal('user-modal');
+        refreshUsers();
+      } catch (err) {
+        errEl.textContent = err.message;
+      }
+    }
+
+    function deleteUser(ext, name) {
+      document.getElementById('confirm-title').textContent = 'Delete User';
+      document.getElementById('confirm-message').textContent = 'Delete user ' + ext + ' (' + name + ')? This will remove the SIP extension and reload Asterisk.';
+      pendingConfirm = async function() {
+        try {
+          await api('/api/users/' + ext, { method: 'DELETE' });
+          toast('User ' + ext + ' deleted');
+          refreshUsers();
+        } catch (err) {
+          toast(err.message, 'error');
+        }
+      };
+      openModal('confirm-modal');
+    }
+
+    function confirmAction() {
+      closeModal('confirm-modal');
+      if (pendingConfirm) { pendingConfirm(); pendingConfirm = null; }
+    }
+
+    // ============================================================
+    // System controls
+    // ============================================================
+    async function reloadAsterisk() {
+      var btn = document.getElementById('btn-reload-asterisk');
+      btn.disabled = true;
+      btn.textContent = 'Reloading...';
+      try {
+        await api('/api/asterisk/reload', { method: 'POST' });
+        toast('Asterisk reloaded');
+      } catch (err) {
+        toast(err.message, 'error');
+      }
+      btn.disabled = false;
+      btn.textContent = 'Reload Asterisk';
+    }
+
+    async function reloadVoiceApp() {
+      var btn = document.getElementById('btn-reload-voiceapp');
+      btn.disabled = true;
+      btn.textContent = 'Reloading...';
+      try {
+        var result = await api('/api/voice-app/reload', { method: 'POST' });
+        toast('Voice app reloaded (' + (result.deviceCount || '?') + ' devices)');
+      } catch (err) {
+        toast(err.message, 'error');
+      }
+      btn.disabled = false;
+      btn.textContent = 'Reload Voice App';
+    }
+
+    async function fullReload() {
+      var btn = document.getElementById('btn-full-reload');
+      btn.disabled = true;
+      btn.textContent = 'Reloading...';
+      try {
+        await api('/api/asterisk/reload', { method: 'POST' });
+        await api('/api/voice-app/reload', { method: 'POST' });
+        toast('Full reload complete');
+      } catch (err) {
+        toast(err.message, 'error');
+      }
+      btn.disabled = false;
+      btn.textContent = 'Reload Everything';
+    }
+
+    // ============================================================
+    // Init
+    // ============================================================
+    function refreshAll() {
+      refreshDashboard();
+      refreshDevices();
+      refreshUsers();
+    }
+
+    refreshAll();
+    setInterval(refreshAll, 5000);
   </script>
 </body>
 </html>

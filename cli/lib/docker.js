@@ -129,8 +129,10 @@ export function generateDockerCompose(config) {
       - AMI_SECRET=\${AMI_SECRET}
       - ADMIN_PORT=${adminPort}
       - DEVICES_CONFIG=/app/config/devices.json
+      - USERS_CONFIG=/app/config/users.json
+      - VOICE_APP_URL=http://127.0.0.1:3000
     volumes:
-      - ${config.paths.voiceApp}/config:/app/config:ro
+      - ${config.paths.voiceApp}/config:/app/config
     depends_on:
       - asterisk
 `;
@@ -153,7 +155,7 @@ services:
       - AMI_ENABLED=\${AMI_ENABLED:-false}
       - AMI_SECRET=\${AMI_SECRET:-}
     volumes:
-      - ${config.paths.voiceApp}/config:/app/config:ro
+      - ${config.paths.voiceApp}/config:/app/config
 
   drachtio:
     image: ${drachtioImage}${platformLine}

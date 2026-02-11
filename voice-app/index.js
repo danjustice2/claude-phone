@@ -218,6 +218,22 @@ function initializeServers() {
   httpServer.app.use("/api", queryRouter);
   console.log("[" + new Date().toISOString() + "] QUERY API enabled (/api/query, /api/devices)");
 
+  // Admin reload endpoint — triggers device registry + SIP re-registration
+  httpServer.app.post("/api/admin/reload", function(req, res) {
+    try {
+      deviceRegistry.reload();
+      if (registrar) {
+        registrar.registerAll(deviceRegistry.getRegistrationConfigs());
+      }
+      var count = Object.keys(deviceRegistry.getAll()).length;
+      console.log("[" + new Date().toISOString() + "] ADMIN Reloaded " + count + " device(s)");
+      res.json({ success: true, deviceCount: count });
+    } catch (err) {
+      console.error("[" + new Date().toISOString() + "] ADMIN Reload failed:", err.message);
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
   // Finalize HTTP server
   httpServer.finalize();
 
